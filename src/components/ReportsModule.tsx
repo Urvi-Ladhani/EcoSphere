@@ -113,34 +113,33 @@ export default function ReportsModule(props: ReportsModuleProps) {
   // Report Modal / Viewer state
   const [compiledReport, setCompiledReport] = useState<SavedReport | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
+  const [reportError, setReportError] = useState('');
 
   // --- Dynamic Compilation Logic ---
-  const runCompileReport = (titleOverride?: string) => {
+  const runCompileReport = (titleOverride?: string, moduleOverride?: 'Environmental' | 'Social' | 'Governance') => {
+    if (!startDate || !endDate || startDate > endDate) {
+      setReportError('Choose a valid reporting period: the end date must be on or after the start date.');
+      return;
+    }
+    setReportError('');
     setIsCompiling(true);
-
-    setTimeout(() => {
+    try {
+      const reportModule = moduleOverride || filterModule;
+      const inRange = (date?: string | null) => Boolean(date && date >= startDate && date <= endDate);
       // 1. Environmental
       let filteredCarbon = carbonTransactions.filter(t => t.status === 'Approved');
-      if (startDate) filteredCarbon = filteredCarbon.filter(t => t.transaction_date >= startDate);
-      if (endDate) filteredCarbon = filteredCarbon.filter(t => t.transaction_date <= endDate);
+      filteredCarbon = filteredCarbon.filter(t => inRange(t.transaction_date));
       if (filterDepartmentId !== 'All') {
         const dept = departments.find(d => d.id === filterDepartmentId);
         if (dept) {
           filteredCarbon = filteredCarbon.filter(t => t.linked_entity.toLowerCase().includes(dept.name.toLowerCase()));
         }
       }
-      if (filterCategoryId !== 'All') {
-        const cat = categories.find(c => c.id === filterCategoryId);
-        if (cat) {
-          filteredCarbon = filteredCarbon.filter(t => t.source.toLowerCase().includes(cat.name.toLowerCase().substring(0, 5)));
-        }
-      }
       const totalCarbon = filteredCarbon.reduce((sum, t) => sum + t.calculated_co2, 0);
 
       // 2. Social
       let filteredCSR = employeeParticipations.filter(p => p.approval_status === 'Approved');
-      if (startDate) filteredCSR = filteredCSR.filter(p => !p.completion_date || p.completion_date >= startDate);
-      if (endDate) filteredCSR = filteredCSR.filter(p => !p.completion_date || p.completion_date <= endDate);
+      filteredCSR = filteredCSR.filter(p => inRange(p.completion_date));
       if (filterEmployeeId !== 'All') {
         filteredCSR = filteredCSR.filter(p => p.employee_id === filterEmployeeId);
       }
@@ -151,6 +150,7 @@ export default function ReportsModule(props: ReportsModuleProps) {
       if (filterEmployeeId !== 'All') {
         filteredChallenges = filteredChallenges.filter(p => p.employee_id === filterEmployeeId);
       }
+      filteredChallenges = filteredChallenges.filter(p => inRange(p.completion_date));
       if (filterChallengeId !== 'All') {
         filteredChallenges = filteredChallenges.filter(p => p.challenge_id === filterChallengeId);
       }
@@ -178,21 +178,21 @@ This document outlines verified ESG (Environmental, Social, Governance) complian
 
 `;
 
-      if (filterModule === 'All' || filterModule === 'Environmental') {
+      if (reportModule === 'All' || reportModule === 'Environmental') {
         summaryText += `**1. ENVIRONMENTAL DISCLOSURES (CARBON & WASTE):**
 - Verified Greenhouse Footprint: **${Math.round(totalCarbon).toLocaleString()} kg CO2e**
 - Logged Environmental Events: ${filteredCarbon.length} approved emission actions.
 - Target Department: ${filterDepartmentId === 'All' ? 'All Corporate Departments' : departments.find(d=>d.id===filterDepartmentId)?.name}\n\n`;
       }
 
-      if (filterModule === 'All' || filterModule === 'Social') {
+      if (reportModule === 'All' || reportModule === 'Social') {
         summaryText += `**2. SOCIAL RESPONSIBILITY & ENGAGEMENT:**
 - Corporate Volunteering Points: **${totalCsrPoints.toLocaleString()} pts**
 - Sustainability Challenges Completed: **${completedChallengesCount} challenges**
 - Active CSR Event Registrations: ${filteredCSR.length} sign-ups verified.\n\n`;
       }
 
-      if (filterModule === 'All' || filterModule === 'Governance') {
+      if (reportModule === 'All' || reportModule === 'Governance') {
         summaryText += `**3. CORPORATE GOVERNANCE & COMPLIANCE INDEX:**
 - Outstanding Compliance Risks: **${openCount} Open Issues**
 - Resolved Non-Compliance Items: **${resolvedCount} Resolved Issues**
@@ -212,12 +212,17 @@ This document outlines verified ESG (Environmental, Social, Governance) complian
       summaryText += `\n---\n*Report Compiled & Certified under ESG Platform Auditor Standards.*`;
 
       // Build CSV
-      let csvContent = "Module,Metric,FilteredValue,ReportingPeriod\n";
-      csvContent += `Environmental,Carbon Emissions,${totalCarbon} kg,${startDate} to ${endDate}\n`;
-      csvContent += `Social,Points Awarded,${totalCsrPoints} pts,${startDate} to ${endDate}\n`;
-      csvContent += `Social,Challenges Completed,${completedChallengesCount},${startDate} to ${endDate}\n`;
-      csvContent += `Governance,Resolved Violations,${resolvedCount},${startDate} to ${endDate}\n`;
-      csvContent += `Governance,Open Violations,${openCount},${startDate} to ${endDate}\n`;
+      const csvRows: Array<[string, string, string | number, string]> = [];
+      if (reportModule === 'All' || reportModule === 'Environmental') csvRows.push(['Environmental', 'Carbon Emissions', `${totalCarbon} kg`, `${startDate} to ${endDate}`]);
+      if (reportModule === 'All' || reportModule === 'Social') {
+        csvRows.push(['Social', 'Points Awarded', `${totalCsrPoints} pts`, `${startDate} to ${endDate}`]);
+        csvRows.push(['Social', 'Challenges Completed', completedChallengesCount, `${startDate} to ${endDate}`]);
+      }
+      if (reportModule === 'All' || reportModule === 'Governance') {
+        csvRows.push(['Governance', 'Resolved Violations', resolvedCount, `${startDate} to ${endDate}`]);
+        csvRows.push(['Governance', 'Open Violations', openCount, `${startDate} to ${endDate}`]);
+      }
+      const csvContent = ['Module,Metric,FilteredValue,ReportingPeriod', ...csvRows.map((row) => row.map(escapeCsvCell).join(','))].join('\n');
 
       setCompiledReport({
         id: 'rep-' + Math.random().toString(36).substr(2, 9),
@@ -229,34 +234,39 @@ This document outlines verified ESG (Environmental, Social, Governance) complian
         csvData: csvContent
       });
 
+    } finally {
       setIsCompiling(false);
-    }, 800);
+    }
+  };
+
+  function escapeCsvCell(value: unknown) {
+    const text = String(value ?? '');
+    const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text;
+    return /[",\n]/.test(safeText) ? `"${safeText.replace(/"/g, '""')}"` : safeText;
+  }
+
+  const downloadReport = (excel = false) => {
+    if (!compiledReport?.csvData) {
+      setReportError('Generate a report before exporting it.');
+      return;
+    }
+    const contents = `${excel ? '\uFEFF' : ''}${compiledReport.csvData}`;
+    const blob = new Blob([contents], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${compiledReport.title.toLowerCase().replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '')}${excel ? '_excel' : ''}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleExportCSV = () => {
-    const report = compiledReport || { csvData: `Module,Metric\nEnvironmental,Carbon\nSocial,Points\nGovernance,Violations`, title: 'esg_custom_brief' };
-    const blob = new Blob([report.csvData || ''], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `${report.title.toLowerCase().replace(/\s+/g, '_')}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadReport(false);
   };
 
   const handleExportExcel = () => {
     // Excel CSV export with BOM for correct encoding formatting
-    const report = compiledReport || { csvData: `Module,Metric\nEnvironmental,Carbon`, title: 'esg_custom_brief' };
-    const BOM = "\uFEFF";
-    const blob = new Blob([BOM + (report.csvData || '')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `${report.title.toLowerCase().replace(/\s+/g, '_')}_excel.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadReport(true);
   };
 
   return (
