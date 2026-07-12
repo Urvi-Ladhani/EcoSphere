@@ -32,7 +32,9 @@ import {
   CSRActivity, 
   EmployeeParticipation, 
   DepartmentScore, 
-  ESGSettings 
+  ESGSettings,
+  Challenge,
+  ChallengeParticipation
 } from './types';
 
 interface FullDBState {
@@ -53,6 +55,8 @@ interface FullDBState {
   employeeParticipations: EmployeeParticipation[];
   departmentScores: DepartmentScore[];
   settings: ESGSettings;
+  challenges: Challenge[];
+  challengeParticipations: ChallengeParticipation[];
 }
 
 export default function App() {
@@ -190,7 +194,9 @@ export default function App() {
             auto_emission_calculation: true,
             evidence_requirement_enabled: true,
             badge_auto_award_enabled: true,
-          }
+          },
+          challenges: state.challenges || [],
+          challengeParticipations: state.challengeParticipations || []
         };
 
         setDbState(normalizedState);
