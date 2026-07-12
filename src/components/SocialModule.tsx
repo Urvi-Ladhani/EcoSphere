@@ -53,17 +53,20 @@ interface SocialModuleProps {
   };
   activeProfile: Profile | null;
   triggerRefresh: () => void;
+  activeSubTab?: string;
+  setActiveSubTab?: (tab: any) => void;
 }
 
-type SubTab = 'activities' | 'approvals' | 'diversity';
+type SubTab = 'activities' | 'participation' | 'diversity';
 
-export default function SocialModule({
-  dbState,
-  activeProfile,
-  triggerRefresh
-}: SocialModuleProps) {
+export default function SocialModule(props: SocialModuleProps) {
+  const { dbState, activeProfile, triggerRefresh } = props;
   const { csrActivities, employeeParticipations, categories, profiles, settings } = dbState;
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('activities');
+  
+  const [localSubTab, setLocalSubTab] = useState<SubTab>('activities');
+  const activeSubTab = (props.activeSubTab as SubTab) || localSubTab;
+  const setActiveSubTab = props.setActiveSubTab || setLocalSubTab;
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -255,7 +258,7 @@ export default function SocialModule({
       <div className="flex border-b border-slate-200" id="social_tabs">
         {[
           { id: 'activities', label: 'CSR Activities', icon: HeartHandshake },
-          { id: 'approvals', label: 'Employee Participation', icon: FileCheck },
+          { id: 'participation', label: 'Employee Participation', icon: FileCheck },
           { id: 'diversity', label: 'Diversity Dashboard', icon: Users }
         ].map(tab => {
           const Icon = tab.icon;
@@ -559,7 +562,7 @@ export default function SocialModule({
       )}
 
       {/* Tab 2: Employee Participation Ledger (Full History View) */}
-      {activeSubTab === 'approvals' && (
+      {activeSubTab === 'participation' && (
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" id="approvals_ledger_card">
           <div className="p-5 border-b border-slate-100 bg-slate-50/55 flex justify-between items-center">
             <span className="font-bold text-slate-800 text-sm">Employee Participation Ledger History</span>

@@ -28,6 +28,8 @@ interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  activeSubTabs: Record<string, string>;
+  setSubTab: (tabId: string, subTabId: string) => void;
   activeProfile: Profile | null;
   setActiveProfile: (profile: Profile) => void;
   profiles: Profile[];
@@ -39,6 +41,8 @@ export default function Layout({
   children,
   activeTab,
   setActiveTab,
+  activeSubTabs,
+  setSubTab,
   activeProfile,
   setActiveProfile,
   profiles,
@@ -71,13 +75,73 @@ export default function Layout({
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
-    { id: 'departments', name: 'Departments', icon: Building2 },
-    { id: 'environmental', name: 'Environmental', icon: Globe2 },
-    { id: 'social', name: 'Social & CSR', icon: HeartHandshake },
-    { id: 'governance', name: 'Governance', icon: ShieldCheck },
-    { id: 'gamification', name: 'Gamification', icon: Trophy },
-    { id: 'reports', name: 'Reports', icon: FilePieChart },
-    { id: 'settings', name: 'Settings', icon: Sliders },
+    { 
+      id: 'environmental', 
+      name: 'Environmental', 
+      icon: Globe2,
+      subItems: [
+        { id: 'factors', name: 'Emission Factors' },
+        { id: 'products', name: 'Product ESG Profiles' },
+        { id: 'transactions', name: 'Carbon Transactions' },
+        { id: 'goals', name: 'Environmental Goals' }
+      ]
+    },
+    {
+      id: 'social',
+      name: 'Social',
+      icon: HeartHandshake,
+      subItems: [
+        { id: 'activities', name: 'CSR Activities' },
+        { id: 'participation', name: 'Employee Participation' },
+        { id: 'diversity', name: 'Diversity Dashboard' }
+      ]
+    },
+    {
+      id: 'governance',
+      name: 'Governance',
+      icon: ShieldCheck,
+      subItems: [
+        { id: 'policies', name: 'Policies' },
+        { id: 'acknowledgements', name: 'Policy Acknowledgements' },
+        { id: 'audits', name: 'Audits' },
+        { id: 'violations', name: 'Compliance Issues' }
+      ]
+    },
+    {
+      id: 'gamification',
+      name: 'Gamification',
+      icon: Trophy,
+      subItems: [
+        { id: 'challenges', name: 'Challenges' },
+        { id: 'participation', name: 'Challenge Participation' },
+        { id: 'badges', name: 'Badges' },
+        { id: 'rewards', name: 'Rewards' },
+        { id: 'leaderboard', name: 'Leaderboard' }
+      ]
+    },
+    {
+      id: 'reports',
+      name: 'Reports',
+      icon: FilePieChart,
+      subItems: [
+        { id: 'environmental', name: 'Environmental Report' },
+        { id: 'social', name: 'Social Report' },
+        { id: 'governance', name: 'Governance Report' },
+        { id: 'summary', name: 'ESG Summary' },
+        { id: 'custom', name: 'Custom Report Builder' }
+      ]
+    },
+    {
+      id: 'settings',
+      name: 'Settings',
+      icon: Sliders,
+      subItems: [
+        { id: 'departments', name: 'Departments' },
+        { id: 'categories', name: 'Categories' },
+        { id: 'config', name: 'ESG Configuration' },
+        { id: 'notifications', name: 'Notification Settings' }
+      ]
+    }
   ];
 
   return (
@@ -119,61 +183,35 @@ export default function Layout({
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
-                <span className="absolute top-0 right-0 bg-rose-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center animate-pulse" id="unread_notif_count">
-                  {unreadCount}
-                </span>
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-600 rounded-full"></span>
               )}
             </button>
 
-            {/* Notifications Drawer */}
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50 animate-fade-in" id="notifications_drawer">
-                <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                  <span className="font-semibold text-slate-800 text-sm">Notifications ({unreadCount})</span>
+              <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden" id="notifications_dropdown">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                  <span className="font-bold text-slate-800 text-xs uppercase tracking-wider">Inbox Notifications</span>
                   {unreadCount > 0 && (
-                    <button
-                      onClick={handleMarkAllRead}
-                      className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                      id="mark_all_read_btn"
-                    >
+                    <button onClick={handleMarkAllRead} className="text-[10px] text-indigo-650 hover:underline font-bold cursor-pointer">
                       Mark all read
                     </button>
                   )}
                 </div>
-                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100" id="notifications_list">
+                <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
                   {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-slate-400 text-xs">No notifications.</div>
+                    <p className="p-6 text-center text-slate-400 text-xs italic">No alerts dispatched.</p>
                   ) : (
                     notifications.map((n) => (
-                      <div 
-                        key={n.id} 
-                        className={`p-3 text-xs transition duration-150 ${n.is_read ? 'bg-white text-slate-600' : 'bg-emerald-50/40 text-slate-800 font-medium'}`}
-                        id={`notif_item_${n.id}`}
-                      >
-                        <div className="flex justify-between items-start gap-1">
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wide font-semibold ${
-                            n.type === 'Alert' ? 'bg-rose-100 text-rose-700' : 
-                            n.type === 'Warning' ? 'bg-amber-100 text-amber-700' : 
-                            'bg-emerald-100 text-emerald-700'
-                          }`}>
-                            {n.type}
-                          </span>
+                      <div key={n.id} className={`p-4 text-xs transition hover:bg-slate-50/50 ${!n.is_read ? 'bg-indigo-50/15' : ''}`}>
+                        <div className="flex justify-between items-start gap-2">
+                          <p className="font-semibold text-slate-700 leading-normal">{n.message}</p>
                           {!n.is_read && (
-                            <button 
-                              onClick={() => handleMarkAsRead(n.id)} 
-                              className="text-slate-400 hover:text-emerald-600 p-0.5"
-                              id={`mark_read_btn_${n.id}`}
-                              title="Mark as Read"
-                            >
+                            <button onClick={() => handleMarkAsRead(n.id)} className="text-slate-450 hover:text-emerald-600 p-0.5" title="Mark Read">
                               <Check className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
-                        <p className="mt-1 font-semibold text-slate-800">{n.title}</p>
-                        <p className="mt-0.5 text-slate-500 leading-relaxed">{n.message}</p>
-                        <span className="text-[10px] text-slate-400 block mt-1.5">
-                          {new Date(n.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono block mt-1">{new Date(n.created_at).toLocaleDateString()}</span>
                       </div>
                     ))
                   )}
@@ -182,33 +220,26 @@ export default function Layout({
             )}
           </div>
 
-          {/* User Profile Avatar / Details */}
-          {activeProfile && (
-            <div className="flex items-center gap-3 border-l border-slate-200 pl-4 animate-fade-in" id="header_profile_pill">
-              <img
-                src={activeProfile.avatar}
-                alt={activeProfile.name}
-                className="w-8 h-8 rounded-full object-cover ring-2 ring-emerald-500/20"
-                id="header_user_avatar"
-              />
-              <div className="hidden lg:block text-left" id="header_user_info">
-                <p className="text-xs font-semibold text-slate-800 leading-none">{activeProfile.name}</p>
-                <p className="text-[10px] text-slate-500 font-medium mt-0.5 uppercase tracking-wider">{activeProfile.role}</p>
-              </div>
-              <button
-                onClick={async () => {
-                  if (confirm("Are you sure you want to sign out of EcoSphere?")) {
-                    await api.logout();
-                  }
-                }}
-                className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all ml-1 cursor-pointer"
-                title="Sign Out"
-                id="header_logout_btn"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          {/* Quick Profile Dropdown Switcher */}
+          <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+            <select
+              value={activeProfile?.id || ''}
+              onChange={(e) => {
+                const found = profiles.find(p => p.id === e.target.value);
+                if (found) {
+                  setActiveProfile(found);
+                  triggerRefresh();
+                }
+              }}
+              className="bg-slate-50 border border-slate-200 text-xs rounded-xl p-1.5 font-bold text-slate-800 cursor-pointer focus:outline-none"
+              id="active_profile_select"
+            >
+              {profiles.map(p => (
+                <option key={p.id} value={p.id}>{p.name} ({p.role})</option>
+              ))}
+            </select>
+          </div>
+
         </div>
       </header>
 
@@ -231,27 +262,54 @@ export default function Layout({
             </div>
           </div>
 
-          <div className="py-4 space-y-1 px-3">
+          <div className="py-4 space-y-1.5 px-3 max-h-[80vh] overflow-y-auto" id="sidebar_links_container">
             {menuItems.map((item) => {
               const IconComponent = item.icon;
               const isActive = activeTab === item.id;
               return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-slate-100 text-emerald-600 border border-slate-200/50 font-semibold'
-                      : 'hover:bg-slate-50 hover:text-slate-800 text-slate-500'
-                  }`}
-                  id={`nav_tab_${item.id}`}
-                >
-                  <IconComponent className={`w-4 h-4 ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
-                  <span>{item.name}</span>
-                </button>
+                <div key={item.id} className="space-y-1">
+                  <button
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-slate-100 text-slate-900 border border-slate-200/50'
+                        : 'hover:bg-slate-50 hover:text-slate-800 text-slate-500'
+                    }`}
+                    id={`nav_tab_${item.id}`}
+                  >
+                    <IconComponent className={`w-4 h-4 ${isActive ? 'text-slate-800' : 'text-slate-400'}`} />
+                    <span>{item.name}</span>
+                  </button>
+
+                  {item.subItems && (
+                    <div className="pl-7 space-y-1 border-l border-slate-150 ml-5 my-1">
+                      {item.subItems.map((sub) => {
+                        const isSubActive = isActive && activeSubTabs[item.id] === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            onClick={() => {
+                              setActiveTab(item.id);
+                              setSubTab(item.id, sub.id);
+                              setMobileMenuOpen(false);
+                            }}
+                            className={`w-full text-left px-2 py-1.5 rounded-md text-[11px] transition-all cursor-pointer ${
+                              isSubActive
+                                ? 'text-slate-900 font-bold bg-slate-100/60'
+                                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                            }`}
+                            id={`nav_sub_${item.id}_${sub.id}`}
+                          >
+                            {sub.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

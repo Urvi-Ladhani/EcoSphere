@@ -30,19 +30,18 @@ interface SettingsModuleProps {
   profiles: Profile[];
   userRole: string;
   triggerRefresh: () => void;
+  activeSubTab?: string;
+  setActiveSubTab?: (tab: any) => void;
 }
 
 type SubTab = 'departments' | 'categories' | 'config' | 'notifications';
 
-export default function SettingsModule({
-  settings,
-  categories,
-  departments,
-  profiles,
-  userRole,
-  triggerRefresh
-}: SettingsModuleProps) {
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('departments');
+export default function SettingsModule(props: SettingsModuleProps) {
+  const { settings, categories, departments, profiles, userRole, triggerRefresh } = props;
+  
+  const [localSubTab, setLocalSubTab] = useState<SubTab>('departments');
+  const activeSubTab = (props.activeSubTab as SubTab) || localSubTab;
+  const setActiveSubTab = props.setActiveSubTab || setLocalSubTab;
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 

@@ -35,17 +35,20 @@ interface EnvironmentalModuleProps {
   };
   userRole: string;
   triggerRefresh: () => void;
+  activeSubTab?: string;
+  setActiveSubTab?: (tab: any) => void;
 }
 
 type SubTab = 'transactions' | 'factors' | 'products' | 'goals';
 
-export default function EnvironmentalModule({
-  dbState,
-  userRole,
-  triggerRefresh
-}: EnvironmentalModuleProps) {
+export default function EnvironmentalModule(props: EnvironmentalModuleProps) {
+  const { dbState, userRole, triggerRefresh } = props;
   const { carbonTransactions, emissionFactors, productsESG, environmentalGoals } = dbState;
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('transactions');
+  
+  const [localSubTab, setLocalSubTab] = useState<SubTab>('factors');
+  const activeSubTab = (props.activeSubTab as SubTab) || localSubTab;
+  const setActiveSubTab = props.setActiveSubTab || setLocalSubTab;
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 

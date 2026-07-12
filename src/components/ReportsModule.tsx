@@ -63,6 +63,8 @@ interface ReportsModuleProps {
     audits?: Audit[];
   };
   userRole: string;
+  activeSubTab?: string;
+  setActiveSubTab?: (tab: any) => void;
 }
 
 type SubTab = 'environmental' | 'social' | 'governance' | 'summary' | 'custom';
@@ -77,7 +79,8 @@ interface SavedReport {
   csvData?: string;
 }
 
-export default function ReportsModule({ dbState, userRole }: ReportsModuleProps) {
+export default function ReportsModule(props: ReportsModuleProps) {
+  const { dbState, userRole } = props;
   const { 
     departments, 
     carbonTransactions, 
@@ -94,7 +97,9 @@ export default function ReportsModule({ dbState, userRole }: ReportsModuleProps)
     audits = []
   } = dbState;
   
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('summary');
+  const [localSubTab, setLocalSubTab] = useState<SubTab>('summary');
+  const activeSubTab = (props.activeSubTab as SubTab) || localSubTab;
+  const setActiveSubTab = props.setActiveSubTab || setLocalSubTab;
 
   // Custom Builder Filters
   const [startDate, setStartDate] = useState('2026-01-01');

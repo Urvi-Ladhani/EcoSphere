@@ -32,17 +32,20 @@ interface GovernanceModuleProps {
   };
   activeProfile: Profile | null;
   triggerRefresh: () => void;
+  activeSubTab?: string;
+  setActiveSubTab?: (tab: any) => void;
 }
 
-type SubTab = 'policies' | 'acknowledgements' | 'audits' | 'compliance';
+type SubTab = 'policies' | 'acknowledgements' | 'audits' | 'violations';
 
-export default function GovernanceModule({
-  dbState,
-  activeProfile,
-  triggerRefresh
-}: GovernanceModuleProps) {
+export default function GovernanceModule(props: GovernanceModuleProps) {
+  const { dbState, activeProfile, triggerRefresh } = props;
   const { esgPolicies, policyAcknowledgements, audits, complianceIssues, profiles, departments = [] } = dbState;
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('audits');
+  
+  const [localSubTab, setLocalSubTab] = useState<SubTab>('audits');
+  const activeSubTab = (props.activeSubTab as SubTab) || localSubTab;
+  const setActiveSubTab = props.setActiveSubTab || setLocalSubTab;
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -245,7 +248,7 @@ export default function GovernanceModule({
             <Plus className="w-4 h-4" />
             {activeSubTab === 'policies' && 'Publish ESG Policy'}
             {activeSubTab === 'audits' && 'Log Audit Record'}
-            {activeSubTab === 'compliance' && 'Raise Compliance Issue'}
+            {activeSubTab === 'violations' && 'Raise Compliance Issue'}
           </button>
         )}
       </div>
@@ -256,7 +259,7 @@ export default function GovernanceModule({
           { id: 'policies', label: 'Policies', icon: BookOpen },
           { id: 'acknowledgements', label: 'Policy Acknowledgements', icon: Fingerprint },
           { id: 'audits', label: 'Audits', icon: FileText },
-          { id: 'compliance', label: 'Compliance Issues', icon: AlertTriangle }
+          { id: 'violations', label: 'Compliance Issues', icon: AlertTriangle }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -288,7 +291,7 @@ export default function GovernanceModule({
             <h3 className="font-bold text-slate-800 text-sm">
               {activeSubTab === 'policies' && 'Publish New Corporate ESG Guideline'}
               {activeSubTab === 'audits' && 'Schedule / Record ESG Audit'}
-              {activeSubTab === 'compliance' && 'Log Operational Non-Compliance Violation'}
+              {activeSubTab === 'violations' && 'Log Operational Non-Compliance Violation'}
             </h3>
             <button onClick={resetForms} className="text-slate-400 hover:text-slate-600">
               <ShieldCheck className="w-4 h-4 text-slate-400" />
@@ -451,7 +454,7 @@ export default function GovernanceModule({
           )}
 
           {/* Form 3: Compliance Issue */}
-          {activeSubTab === 'compliance' && (
+          {activeSubTab === 'violations' && (
             <form onSubmit={handleCreateCompliance} className="space-y-4 mt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -789,7 +792,7 @@ export default function GovernanceModule({
       )}
 
       {/* Tab 4: Compliance Issues History */}
-      {activeSubTab === 'compliance' && (
+      {activeSubTab === 'violations' && (
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" id="compliance_issues_card">
           <div className="p-5 border-b border-slate-100 bg-slate-50/55 flex justify-between items-center">
             <span className="font-bold text-slate-800 text-sm">Full Compliance Violation Risks Log</span>

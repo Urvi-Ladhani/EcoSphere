@@ -62,6 +62,32 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Lifted subtab states matching Excalidraw navigation flow
+  const [environmentalSubTab, setEnvironmentalSubTab] = useState('factors');
+  const [socialSubTab, setSocialSubTab] = useState('activities');
+  const [governanceSubTab, setGovernanceSubTab] = useState('audits');
+  const [gamificationSubTab, setGamificationSubTab] = useState('challenges');
+  const [reportsSubTab, setReportsSubTab] = useState('summary');
+  const [settingsSubTab, setSettingsSubTab] = useState('departments');
+
+  const activeSubTabs = {
+    environmental: environmentalSubTab,
+    social: socialSubTab,
+    governance: governanceSubTab,
+    gamification: gamificationSubTab,
+    reports: reportsSubTab,
+    settings: settingsSubTab
+  };
+
+  const setSubTab = (tabId: string, subTabId: string) => {
+    if (tabId === 'environmental') setEnvironmentalSubTab(subTabId);
+    else if (tabId === 'social') setSocialSubTab(subTabId);
+    else if (tabId === 'governance') setGovernanceSubTab(subTabId);
+    else if (tabId === 'gamification') setGamificationSubTab(subTabId);
+    else if (tabId === 'reports') setReportsSubTab(subTabId);
+    else if (tabId === 'settings') setSettingsSubTab(subTabId);
+  };
+
   // Full unified database state
   const [dbState, setDbState] = useState<FullDBState | null>(null);
 
@@ -220,6 +246,8 @@ export default function App() {
     <Layout
       activeTab={activeTab}
       setActiveTab={setActiveTab}
+      activeSubTabs={activeSubTabs}
+      setSubTab={setSubTab}
       activeProfile={activeProfile}
       setActiveProfile={setActiveProfile}
       profiles={profiles}
@@ -244,6 +272,8 @@ export default function App() {
           dbState={dbState}
           userRole={activeProfile.role}
           triggerRefresh={triggerRefresh}
+          activeSubTab={environmentalSubTab}
+          setActiveSubTab={setEnvironmentalSubTab}
         />
       )}
 
@@ -252,6 +282,8 @@ export default function App() {
           dbState={dbState}
           activeProfile={activeProfile}
           triggerRefresh={triggerRefresh}
+          activeSubTab={socialSubTab}
+          setActiveSubTab={setSocialSubTab}
         />
       )}
 
@@ -260,6 +292,8 @@ export default function App() {
           dbState={dbState}
           activeProfile={activeProfile}
           triggerRefresh={triggerRefresh}
+          activeSubTab={governanceSubTab}
+          setActiveSubTab={setGovernanceSubTab}
         />
       )}
 
@@ -268,6 +302,8 @@ export default function App() {
           dbState={dbState}
           activeProfile={activeProfile}
           triggerRefresh={triggerRefresh}
+          activeSubTab={gamificationSubTab}
+          setActiveSubTab={setGamificationSubTab}
         />
       )}
 
@@ -275,6 +311,8 @@ export default function App() {
         <ReportsModule
           dbState={dbState}
           userRole={activeProfile.role}
+          activeSubTab={reportsSubTab}
+          setActiveSubTab={setReportsSubTab}
         />
       )}
 
@@ -286,6 +324,8 @@ export default function App() {
           profiles={dbState.profiles}
           userRole={activeProfile.role}
           triggerRefresh={triggerRefresh}
+          activeSubTab={settingsSubTab}
+          setActiveSubTab={setSettingsSubTab}
         />
       )}
     </Layout>

@@ -39,15 +39,14 @@ interface GamificationModuleProps {
   };
   activeProfile: Profile | null;
   triggerRefresh: () => void;
+  activeSubTab?: string;
+  setActiveSubTab?: (tab: any) => void;
 }
 
 type SubTab = 'challenges' | 'participation' | 'badges' | 'rewards' | 'leaderboard';
 
-export default function GamificationModule({
-  dbState,
-  activeProfile,
-  triggerRefresh
-}: GamificationModuleProps) {
+export default function GamificationModule(props: GamificationModuleProps) {
+  const { dbState, activeProfile, triggerRefresh } = props;
   const { 
     badges, 
     rewardItems, 
@@ -58,7 +57,10 @@ export default function GamificationModule({
     settings = {},
     departments = []
   } = dbState;
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('challenges');
+  
+  const [localSubTab, setLocalSubTab] = useState<SubTab>('challenges');
+  const activeSubTab = (props.activeSubTab as SubTab) || localSubTab;
+  const setActiveSubTab = props.setActiveSubTab || setLocalSubTab;
   const [showAddForm, setShowAddForm] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   
