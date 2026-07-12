@@ -255,7 +255,7 @@ export default function App() {
       triggerRefresh={triggerRefresh}
     >
       {activeTab === 'dashboard' && (
-        <Dashboard dbState={dbState} setActiveTab={setActiveTab} />
+        <Dashboard dbState={dbState} setActiveTab={setActiveTab} setSubTab={setSubTab} />
       )}
 
       {activeTab === 'departments' && (
