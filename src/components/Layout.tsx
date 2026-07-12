@@ -284,8 +284,8 @@ export default function Layout({
                     <span>{item.name}</span>
                   </button>
 
-                  {item.subItems && (
-                    <div className="pl-7 space-y-1 border-l border-slate-150 ml-5 my-1">
+                  {isActive && item.subItems && (
+                    <div className="pl-7 space-y-1 border-l border-slate-150 ml-5 my-1 animate-fade-in">
                       {item.subItems.map((sub) => {
                         const isSubActive = isActive && activeSubTabs[item.id] === sub.id;
                         return (
