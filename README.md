@@ -44,3 +44,17 @@ EcoSphere provides dedicated Environmental, Social, Governance, and overall ESG 
 
 * *Custom Report Builder:* Users can build reports by combining specific criteria and exporting them to PDF, Excel, or CSV formats[cite: 3].
 * *Supported Filters:* Reports can be refined by Department, Date Range, Module, Employee, Challenge, and ESG Category[cite: 3].
+In Google Cloud, add the Supabase callback URL shown by the provider setup. In
+Supabase **Authentication → URL Configuration**, add your deployed app URL and
+the local development URL (`http://localhost:3000`) to the redirect allow list.
+New Google users are created as `Employee` profiles in the first available
+department; an administrator can assign their correct role and department
+afterward.
+
+## Gemini ESG assistant
+
+`GEMINI_API_KEY` is read only by `server.ts`; it is never included in the
+browser bundle. With the server running, the floating **Ask ESG Assistant**
+button answers questions using Gemini and a compact, current EcoSphere ESG
+snapshot. Optionally set `GEMINI_MODEL` in `.env` to use a different Gemini
+model; the default is `gemini-3.5-flash`.

@@ -6,6 +6,8 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import dotenv from 'dotenv';
+import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import {
   Profile,
@@ -31,6 +33,10 @@ import {
   RewardRedemption,
   EmployeeBadge
 } from './src/types';
+
+// Load server-only secrets before initializing integrations. Do not expose
+// GEMINI_API_KEY through a VITE_ variable or the browser bundle.
+dotenv.config();
 
 // Initialize App
 const app = express();
@@ -834,6 +840,98 @@ function recalculateDepartmentScores(db: DBState) {
 }
 
 // ---------------- API ENDPOINTS ----------------
+
+function buildEsgAssistantContext(db: DBState) {
+  const openIssues = db.complianceIssues.filter((issue) => issue.status !== 'Resolved');
+  const activeGoals = db.environmentalGoals.filter((goal) => goal.status === 'Active');
+  const activeChallenges = db.challenges.filter((challenge) => challenge.status === 'Active');
+  const departmentScores = db.departmentScores.map((score) => {
+    const department = db.departments.find((item) => item.id === score.department_id);
+    return `${department?.name || score.department_id}: total ${score.total_score}, environmental ${score.environmental_score}, social ${score.social_score}, governance ${score.governance_score}`;
+  });
+
+  return [
+    `Organization snapshot: ${db.profiles.length} employees across ${db.departments.length} departments.`,
+    `Active environmental goals: ${activeGoals.length}; active CSR activities: ${db.csrActivities.filter((activity) => activity.status === 'Active').length}; active challenges: ${activeChallenges.length}.`,
+    `Compliance issues: ${openIssues.length} open of ${db.complianceIssues.length} total.`,
+    `Department scores: ${departmentScores.join(' | ') || 'No score data available.'}`,
+    `Environmental goals: ${activeGoals.map((goal) => `${goal.title} (${goal.progress}% progress, target ${goal.target_value} ${goal.unit})`).join(' | ') || 'None.'}`
+  ].join('\n');
+}
+
+function getAssistantContext(requestContext: unknown, db: DBState) {
+  // The browser supplies only a compact summary of the data it already displays.
+  // Fall back to the server ledger for direct API use or older clients.
+  if (requestContext && typeof requestContext === 'object') {
+    const serialized = JSON.stringify(requestContext);
+    if (serialized.length <= 12_000) return serialized;
+  }
+  return buildEsgAssistantContext(db);
+}
+
+function getConversationHistory(history: unknown) {
+  if (!Array.isArray(history)) return [];
+
+  return history
+    .slice(-12)
+    .flatMap((message) => {
+      if (!message || typeof message !== 'object') return [];
+      const { role, content } = message as { role?: unknown; content?: unknown };
+      if ((role !== 'user' && role !== 'assistant') || typeof content !== 'string' || !content.trim()) return [];
+      return [{
+        role: role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: content.trim().slice(0, 2_000) }]
+      }];
+    });
+}
+
+app.post('/api/esg-assistant', async (req, res) => {
+  const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+  if (!question) {
+    res.status(400).json({ error: 'Please enter a question for the ESG assistant.' });
+    return;
+  }
+  if (question.length > 2_000) {
+    res.status(400).json({ error: 'Please limit your question to 2,000 characters.' });
+    return;
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({ error: 'The ESG assistant is not configured. Add GEMINI_API_KEY to .env and restart the server.' });
+    return;
+  }
+  try {
+    const db = loadDB();
+    const ai = new GoogleGenAI({ apiKey });
+    const stream = await ai.models.generateContentStream({
+      model: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
+      config: {
+        maxOutputTokens: 600,
+        systemInstruction: `You are EcoSphere's ESG assistant. Answer questions about ESG operations, compliance, emissions, employee engagement, and the supplied EcoSphere data. Be concise, practical, and transparent when the data does not support a conclusion. Do not invent figures, legal requirements, company policies, or actions that were not provided. This is guidance, not legal or compliance advice.\n\nCurrent EcoSphere data:\n${getAssistantContext(req.body?.context, db)}`
+      },
+      contents: [...getConversationHistory(req.body?.history), { role: 'user', parts: [{ text: question }] }]
+    });
+
+    res.status(200).set({
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+    for await (const chunk of stream) {
+      if (chunk.text) res.write(chunk.text);
+    }
+    res.end();
+  } catch (error) {
+    console.error('ESG assistant request failed:', error);
+    if (res.headersSent) {
+      res.end();
+    } else {
+      res.status(502).json({ error: 'The ESG assistant could not respond right now. Please try again.' });
+    }
+  }
+});
 
 // DB Raw/General Getter
 app.get('/api/db-state', (req, res) => {

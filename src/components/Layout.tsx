@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/supabase';
 import { Profile, Notification } from '../types';
+import ESGAssistant, { ESGAssistantContext } from './ESGAssistant';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,6 +34,7 @@ interface LayoutProps {
   activeProfile: Profile | null;
   setActiveProfile: (profile: Profile) => void;
   profiles: Profile[];
+  assistantContext: ESGAssistantContext;
   refreshTrigger: number;
   triggerRefresh: () => void;
 }
@@ -46,6 +48,7 @@ export default function Layout({
   activeProfile,
   setActiveProfile,
   profiles,
+  assistantContext,
   refreshTrigger,
   triggerRefresh
 }: LayoutProps) {
@@ -327,6 +330,7 @@ export default function Layout({
           </div>
         </main>
       </div>
+      <ESGAssistant context={assistantContext} />
     </div>
   );
 }

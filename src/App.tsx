@@ -14,6 +14,7 @@ import GamificationModule from './components/GamificationModule';
 import ReportsModule from './components/ReportsModule';
 import SettingsModule from './components/SettingsModule';
 import Auth from './components/Auth';
+import { ESGAssistantContext } from './components/ESGAssistant';
 import { api, supabase } from './lib/supabase';
 import { 
   Profile, 
@@ -248,6 +249,22 @@ export default function App() {
     );
   }
 
+  const assistantContext: ESGAssistantContext = {
+    employeeCount: dbState.profiles.length,
+    departmentScores: dbState.departmentScores.map((score) => ({
+      name: dbState.departments.find((department) => department.id === score.department_id)?.name || score.department_id,
+      total: score.total_score,
+      environmental: score.environmental_score,
+      social: score.social_score,
+      governance: score.governance_score
+    })),
+    activeGoals: dbState.environmentalGoals
+      .filter((goal) => goal.status === 'Active')
+      .map((goal) => ({ title: goal.title, progress: goal.progress, target: goal.target_value, unit: goal.unit })),
+    openComplianceIssues: dbState.complianceIssues.filter((issue) => issue.status !== 'Resolved').length,
+    activeChallenges: dbState.challenges.filter((challenge) => challenge.status === 'Active').length
+  };
+
   return (
     <Layout
       activeTab={activeTab}
@@ -257,6 +274,7 @@ export default function App() {
       activeProfile={activeProfile}
       setActiveProfile={setActiveProfile}
       profiles={profiles}
+      assistantContext={assistantContext}
       refreshTrigger={refreshTrigger}
       triggerRefresh={triggerRefresh}
     >
