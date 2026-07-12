@@ -101,25 +101,6 @@ export default function Layout({
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Active Profile switcher drop-down (crucial for local testing of multiple roles) */}
-          <div className="flex items-center gap-2" id="profile_switcher_container">
-            <span className="text-xs text-slate-500 font-medium hidden md:inline">Test Role Active:</span>
-            <select
-              value={activeProfile?.id || ''}
-              onChange={(e) => {
-                const found = profiles.find(p => p.id === e.target.value);
-                if (found) setActiveProfile(found);
-              }}
-              className="bg-slate-100 border-0 text-slate-700 text-xs rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block p-2 font-medium"
-              id="active_profile_select"
-            >
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.role})
-                </option>
-              ))}
-            </select>
-          </div>
 
           {/* Points / XP Quick Badge for Gamification */}
           {activeProfile && (
@@ -203,7 +184,7 @@ export default function Layout({
 
           {/* User Profile Avatar / Details */}
           {activeProfile && (
-            <div className="flex items-center gap-2 border-l border-slate-200 pl-4" id="header_profile_pill">
+            <div className="flex items-center gap-3 border-l border-slate-200 pl-4 animate-fade-in" id="header_profile_pill">
               <img
                 src={activeProfile.avatar}
                 alt={activeProfile.name}
@@ -214,6 +195,18 @@ export default function Layout({
                 <p className="text-xs font-semibold text-slate-800 leading-none">{activeProfile.name}</p>
                 <p className="text-[10px] text-slate-500 font-medium mt-0.5 uppercase tracking-wider">{activeProfile.role}</p>
               </div>
+              <button
+                onClick={async () => {
+                  if (confirm("Are you sure you want to sign out of EcoSphere?")) {
+                    await api.logout();
+                  }
+                }}
+                className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all ml-1 cursor-pointer"
+                title="Sign Out"
+                id="header_logout_btn"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           )}
         </div>

@@ -13,7 +13,8 @@ import GovernanceModule from './components/GovernanceModule';
 import GamificationModule from './components/GamificationModule';
 import ReportsModule from './components/ReportsModule';
 import SettingsModule from './components/SettingsModule';
-import { api } from './lib/supabase';
+import Auth from './components/Auth';
+import { api, supabase } from './lib/supabase';
 import { 
   Profile, 
   Department, 
@@ -68,8 +69,43 @@ export default function App() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  // Auth session validation hook
+  useEffect(() => {
+    api.getCurrentUser()
+      .then((user) => {
+        if (user) {
+          setActiveProfile(user);
+        } else {
+          setActiveProfile(null);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Auth resolve error", err);
+        setActiveProfile(null);
+        setLoading(false);
+      });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const user = await api.getCurrentUser();
+        setActiveProfile(user);
+        triggerRefresh();
+      } else {
+        setActiveProfile(null);
+        setDbState(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // Load the initial DB state
   useEffect(() => {
+    if (!activeProfile) return;
     setLoading(true);
     api.getDbState()
       .then((state: any) => {
@@ -134,14 +170,15 @@ export default function App() {
         setDbState(normalizedState);
         setProfiles(normalizedState.profiles);
 
-        // Bind active profile on first run
-        if (!activeProfile && normalizedState.profiles.length > 0) {
-          // Keep current selection if already bound, otherwise default to first
-          setActiveProfile(normalizedState.profiles[0]);
-        } else if (activeProfile) {
-          // Sync profile state with updated values (XP / points)
+        if (activeProfile) {
           const updatedMe = normalizedState.profiles.find((p) => p.id === activeProfile.id);
-          if (updatedMe) {
+          if (updatedMe && (
+            updatedMe.xp !== activeProfile.xp ||
+            updatedMe.points !== activeProfile.points ||
+            updatedMe.points_balance !== activeProfile.points_balance ||
+            updatedMe.name !== activeProfile.name ||
+            updatedMe.role !== activeProfile.role
+          )) {
             setActiveProfile(updatedMe);
           }
         }
@@ -151,9 +188,24 @@ export default function App() {
         console.error('Error fetching database state', err);
         setLoading(false);
       });
-  }, [refreshTrigger]);
+  }, [refreshTrigger, activeProfile?.id]);
 
-  if (loading || !dbState || !activeProfile) {
+  if (loading && !activeProfile) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center font-sans">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm font-semibold text-slate-400 animate-pulse">Initializing EcoSphere Platform...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!activeProfile) {
+    return <Auth onAuthSuccess={triggerRefresh} />;
+  }
+
+  if (loading || !dbState) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-sans">
         <div className="flex flex-col items-center gap-4">
