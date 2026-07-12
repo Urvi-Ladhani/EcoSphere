@@ -19,7 +19,8 @@ import {
   LogOut, 
   X, 
   Check, 
-  Menu
+  Menu,
+  Smile
 } from 'lucide-react';
 import { api } from '../lib/supabase';
 import { Profile, Notification } from '../types';
@@ -141,8 +142,7 @@ export default function Layout({
       subItems: [
         { id: 'departments', name: 'Departments' },
         { id: 'categories', name: 'Categories' },
-        { id: 'config', name: 'ESG Configuration' },
-        { id: 'notifications', name: 'Notification Settings' }
+        { id: 'config', name: 'ESG Configuration' }
       ]
     }
   ];
@@ -258,7 +258,9 @@ export default function Layout({
 
           {/* Profile Badge in Sidebar for Mobile */}
           <div className="p-4 border-b border-slate-150 bg-slate-50/50 flex items-center gap-3">
-            <img src={activeProfile?.avatar} className="w-10 h-10 rounded-full object-cover border border-slate-200" alt="" />
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-amber-200 bg-gradient-to-br from-amber-100 to-emerald-100 shadow-sm" aria-label={`${activeProfile?.name || 'User'} profile`}>
+              <Smile className="h-5 w-5 text-emerald-700" strokeWidth={2.4} />
+            </div>
             <div>
               <p className="text-sm font-bold text-slate-800 leading-tight">{activeProfile?.name}</p>
               <span className="inline-block bg-slate-100 text-emerald-700 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded mt-1">{activeProfile?.role}</span>

@@ -9,7 +9,6 @@ import {
   Save, 
   Sparkles, 
   Sliders, 
-  Bell, 
   ShieldAlert, 
   Check, 
   Plus, 
@@ -34,13 +33,15 @@ interface SettingsModuleProps {
   setActiveSubTab?: (tab: any) => void;
 }
 
-type SubTab = 'departments' | 'categories' | 'config' | 'notifications';
+type SubTab = 'departments' | 'categories' | 'config';
 
 export default function SettingsModule(props: SettingsModuleProps) {
   const { settings, categories, departments, profiles, userRole, triggerRefresh } = props;
   
   const [localSubTab, setLocalSubTab] = useState<SubTab>('departments');
-  const activeSubTab = (props.activeSubTab as SubTab) || localSubTab;
+  const activeSubTab: SubTab = props.activeSubTab === 'notifications'
+    ? 'config'
+    : ((props.activeSubTab as SubTab) || localSubTab);
   const setActiveSubTab = props.setActiveSubTab || setLocalSubTab;
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -251,8 +252,7 @@ export default function SettingsModule(props: SettingsModuleProps) {
         {[
           { id: 'departments', label: 'Departments', icon: Building2 },
           { id: 'categories', label: 'Categories', icon: FolderOpen },
-          { id: 'config', label: 'ESG Configuration', icon: Sliders },
-          { id: 'notifications', label: 'Notification Settings', icon: Bell }
+          { id: 'config', label: 'ESG Configuration', icon: Sliders }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -430,19 +430,9 @@ export default function SettingsModule(props: SettingsModuleProps) {
                       // Count employee records linked to this department
                       const empCount = profiles.filter(p => p.department_id === dept.id).length;
                       
-                      // Seeded overrides to match the Excalidraw drawing if dynamic results are 0
-                      const displayEmpCount = dept.name === 'Manufacturing' ? 134 :
-                                              dept.name === 'Logistics' ? 58 :
-                                              dept.name === 'Corporate' ? 41 : (empCount || 0);
-
-                      const displayHead = dept.head || (
-                        dept.name === 'Manufacturing' ? 'S. Nair' :
-                        dept.name === 'Logistics' ? 'R. Iyer' : 'A. Mehta'
-                      );
-
-                      const displayParent = departments.find(d => d.id === dept.parent_id)?.name || (
-                        dept.name === 'Logistics' ? 'Manufacturing' : '—'
-                      );
+                      const displayEmpCount = empCount || dept.employee_count || 0;
+                      const displayHead = dept.head || '—';
+                      const displayParent = departments.find(d => d.id === dept.parent_id)?.name || '—';
 
                       const displayStatus = dept.status || 'Active';
 
@@ -473,86 +463,6 @@ export default function SettingsModule(props: SettingsModuleProps) {
                   )}
                 </tbody>
               </table>
-            </div>
-          </div>
-
-          {/* Bottom section: ESG Configuration & Notifications */}
-          <div className="border-t border-slate-150 pt-6 mt-6">
-            <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wide mb-4 pl-1">
-              ESG Configuration &amp; Notifications
-            </h4>
-
-            {/* Toggle switch selectors */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="auto_toggles_container">
-              
-              {/* Toggle 1: Enable auto emission calculation */}
-              <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-sm">
-                <span className="text-xs font-bold text-slate-700">Enable auto emission calculation</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAutoEmission(!autoEmission);
-                    handleToggleChange('auto_emission_calculation', !autoEmission);
-                  }}
-                  className={`w-10 h-5 rounded-full p-0.5 transition cursor-pointer ${
-                    autoEmission ? 'bg-emerald-600 flex justify-end' : 'bg-slate-300 flex justify-start'
-                  }`}
-                >
-                  <span className="w-4 h-4 bg-white rounded-full shadow-inner block"></span>
-                </button>
-              </div>
-
-              {/* Toggle 2: Require evidence for all CSR activities */}
-              <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-sm">
-                <span className="text-xs font-bold text-slate-700">Require evidence for all CSR activities</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEvidenceReq(!evidenceReq);
-                    handleToggleChange('evidence_requirement_enabled', !evidenceReq);
-                  }}
-                  className={`w-10 h-5 rounded-full p-0.5 transition cursor-pointer ${
-                    evidenceReq ? 'bg-emerald-600 flex justify-end' : 'bg-slate-300 flex justify-start'
-                  }`}
-                >
-                  <span className="w-4 h-4 bg-white rounded-full shadow-inner block"></span>
-                </button>
-              </div>
-
-              {/* Toggle 3: Auto-award badges on challenge completion */}
-              <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-sm">
-                <span className="text-xs font-bold text-slate-700">Auto-award badges on challenge completion</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBadgeAuto(!badgeAuto);
-                    handleToggleChange('badge_auto_award_enabled', !badgeAuto);
-                  }}
-                  className={`w-10 h-5 rounded-full p-0.5 transition cursor-pointer ${
-                    badgeAuto ? 'bg-emerald-600 flex justify-end' : 'bg-slate-300 flex justify-start'
-                  }`}
-                >
-                  <span className="w-4 h-4 bg-white rounded-full shadow-inner block"></span>
-                </button>
-              </div>
-
-              {/* Toggle 4: Email alerts for new compliance issues */}
-              <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-sm">
-                <span className="text-xs font-bold text-slate-700">Email alerts for new compliance issues</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNotifCompliance(!notifCompliance);
-                    handleToggleChange('notification_compliance_raised', !notifCompliance);
-                  }}
-                  className={`w-10 h-5 rounded-full p-0.5 transition cursor-pointer ${
-                    notifCompliance ? 'bg-emerald-600 flex justify-end' : 'bg-slate-300 flex justify-start'
-                  }`}
-                >
-                  <span className="w-4 h-4 bg-white rounded-full shadow-inner block"></span>
-                </button>
-              </div>
-
             </div>
           </div>
 
@@ -673,6 +583,7 @@ export default function SettingsModule(props: SettingsModuleProps) {
                 max="100"
                 value={wEnv}
                 onChange={(e) => setWEnv(Number(e.target.value))}
+                disabled={!isManagement}
                 className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-emerald-600"
               />
             </div>
@@ -689,6 +600,7 @@ export default function SettingsModule(props: SettingsModuleProps) {
                 max="100"
                 value={wSoc}
                 onChange={(e) => setWSoc(Number(e.target.value))}
+                disabled={!isManagement}
                 className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-emerald-600"
               />
             </div>
@@ -705,47 +617,44 @@ export default function SettingsModule(props: SettingsModuleProps) {
                 max="100"
                 value={wGov}
                 onChange={(e) => setWGov(Number(e.target.value))}
+                disabled={!isManagement}
                 className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-emerald-600"
               />
             </div>
           </div>
-        </form>
-      )}
 
-      {/* Tab 4: Notifications Detail Config */}
-      {activeSubTab === 'notifications' && (
-        <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4 animate-fade-in" id="notifications_workspace">
-          <div className="pb-3 border-b border-slate-100">
-            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-              <Bell className="w-4 h-4 text-emerald-600" /> System Notification Broadcast Toggles
-            </h3>
+          <div className="border-t border-slate-100 pt-5">
+            <h4 className="mb-3 text-xs font-bold text-slate-700">Automation &amp; notification rules</h4>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {[
+                { label: 'Enable automatic emission calculation', value: autoEmission, setValue: setAutoEmission, field: 'auto_emission_calculation' },
+                { label: 'Require evidence for CSR and challenge completions', value: evidenceReq, setValue: setEvidenceReq, field: 'evidence_requirement_enabled' },
+                { label: 'Auto-award earned badges', value: badgeAuto, setValue: setBadgeAuto, field: 'badge_auto_award_enabled' },
+                { label: 'Send compliance issue alerts', value: notifCompliance, setValue: setNotifCompliance, field: 'notification_compliance_raised' },
+                { label: 'Send CSR and challenge decision alerts', value: notifCSR, setValue: setNotifCSR, field: 'notification_csr_challenge_decision' },
+                { label: 'Send policy acknowledgement reminders', value: notifPolicy, setValue: setNotifPolicy, field: 'notification_policy_reminder' },
+                { label: 'Send badge unlock congratulations', value: notifBadge, setValue: setNotifBadge, field: 'notification_badge_unlock' }
+              ].map((item) => (
+                <div key={item.field} className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
+                  <span className="pr-3 text-xs font-medium text-slate-700">{item.label}</span>
+                  <button
+                    type="button"
+                    disabled={!isManagement}
+                    onClick={() => {
+                      const nextValue = !item.value;
+                      item.setValue(nextValue);
+                      handleToggleChange(item.field as keyof ESGSettings, nextValue);
+                    }}
+                    className={`flex h-5 w-10 flex-shrink-0 rounded-full p-0.5 transition ${item.value ? 'justify-end bg-emerald-600' : 'justify-start bg-slate-300'} ${isManagement ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+                    aria-label={item.label}
+                  >
+                    <span className="block h-4 w-4 rounded-full bg-white shadow-inner" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
-          
-          <div className="space-y-3">
-            {[
-              { id: 'notif_compliance', label: 'Email alerts when new compliance issues are raised', state: notifCompliance, setter: setNotifCompliance, field: 'notification_compliance_raised' },
-              { id: 'notif_csr', label: 'Inbox alerts on CSR activities or challenge decision audits', state: notifCSR, setter: setNotifCSR, field: 'notification_csr_challenge_decision' },
-              { id: 'notif_policy', label: 'Weekly policy signature acknowledgement checkups', state: notifPolicy, setter: setNotifPolicy, field: 'notification_policy_reminder' },
-              { id: 'notif_badge', label: 'Auto push congratulations when new milestone badges unlock', state: notifBadge, setter: setNotifBadge, field: 'notification_badge_unlock' }
-            ].map((item) => (
-              <div key={item.id} className="flex items-center justify-between p-3.5 border border-slate-100 rounded-xl hover:bg-slate-50/50 transition">
-                <span className="text-xs font-medium text-slate-650">{item.label}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    item.setter(!item.state);
-                    handleToggleChange(item.field as any, !item.state);
-                  }}
-                  className={`w-10 h-5 rounded-full p-0.5 transition cursor-pointer ${
-                    item.state ? 'bg-emerald-650 flex justify-end' : 'bg-slate-300 flex justify-start'
-                  }`}
-                >
-                  <span className="w-4 h-4 bg-white rounded-full shadow-inner block"></span>
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+        </form>
       )}
 
     </div>

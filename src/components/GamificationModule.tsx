@@ -129,8 +129,12 @@ export default function GamificationModule(props: GamificationModuleProps) {
 
   const handleCreateReward = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rewTitle.trim() || rewPoints <= 0) {
-      setErrorMessage('Title and points cost are required.');
+    if (!isManagement) {
+      setErrorMessage('You do not have permission to modify the catalog.');
+      return;
+    }
+    if (!rewTitle.trim() || !Number.isFinite(rewPoints) || rewPoints <= 0 || !Number.isFinite(rewStock) || rewStock < 0) {
+      setErrorMessage('A title, a positive points cost, and a non-negative stock are required.');
       return;
     }
     try {
@@ -150,8 +154,12 @@ export default function GamificationModule(props: GamificationModuleProps) {
 
   const handleCreateBadge = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!badgeName.trim() || badgeXp <= 0) {
-      setErrorMessage('Badge Name and XP Milestone threshold are required.');
+    if (!isManagement) {
+      setErrorMessage('You do not have permission to configure badges.');
+      return;
+    }
+    if (!badgeName.trim() || !Number.isFinite(badgeXp) || badgeXp <= 0) {
+      setErrorMessage('Badge Name and a positive XP Milestone threshold are required.');
       return;
     }
     try {

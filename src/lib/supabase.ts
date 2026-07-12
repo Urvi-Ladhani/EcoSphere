@@ -33,6 +33,11 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// The database primary keys are VARCHAR(50) with no server-side default, so every
+// insert must supply its own id. Generate a prefixed, collision-resistant id here.
+const genId = (prefix: string): string =>
+  `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+
 export const api = {
   // DB Raw/General Getter
   async getDbState() {
@@ -277,7 +282,8 @@ export const api = {
   },
 
   async createProfile(profile: Partial<Profile>): Promise<Profile> {
-    const { data, error } = await supabase.from('profiles').insert(profile).select().single();
+    const payload = { id: genId('emp'), ...profile };
+    const { data, error } = await supabase.from('profiles').insert(payload).select().single();
     if (error) throw error;
     return data;
   },
@@ -301,7 +307,7 @@ export const api = {
   },
 
   async createDepartment(dept: Partial<Department>): Promise<Department> {
-    const { data, error } = await supabase.from('departments').insert(dept).select().single();
+    const { data, error } = await supabase.from('departments').insert({ id: genId('dept'), ...dept }).select().single();
     if (error) throw error;
     return data;
   },
@@ -325,7 +331,7 @@ export const api = {
   },
 
   async createCategory(cat: Partial<Category>): Promise<Category> {
-    const { data, error } = await supabase.from('categories').insert(cat).select().single();
+    const { data, error } = await supabase.from('categories').insert({ id: genId('cat'), ...cat }).select().single();
     if (error) throw error;
     return data;
   },
@@ -349,7 +355,7 @@ export const api = {
   },
 
   async createEmissionFactor(ef: Partial<EmissionFactor>): Promise<EmissionFactor> {
-    const { data, error } = await supabase.from('emission_factors').insert(ef).select().single();
+    const { data, error } = await supabase.from('emission_factors').insert({ id: genId('ef'), ...ef }).select().single();
     if (error) throw error;
     return data;
   },
@@ -373,7 +379,7 @@ export const api = {
   },
 
   async createProductESG(prod: Partial<ProductESGProfile>): Promise<ProductESGProfile> {
-    const { data, error } = await supabase.from('products_esg').insert(prod).select().single();
+    const { data, error } = await supabase.from('products_esg').insert({ id: genId('prod'), ...prod }).select().single();
     if (error) throw error;
     return data;
   },
@@ -397,7 +403,7 @@ export const api = {
   },
 
   async createEnvironmentalGoal(goal: Partial<EnvironmentalGoal>): Promise<EnvironmentalGoal> {
-    const { data, error } = await supabase.from('environmental_goals').insert(goal).select().single();
+    const { data, error } = await supabase.from('environmental_goals').insert({ id: genId('goal'), ...goal }).select().single();
     if (error) throw error;
     return data;
   },
@@ -421,7 +427,7 @@ export const api = {
   },
 
   async createPolicy(policy: Partial<ESGPolicy>): Promise<ESGPolicy> {
-    const { data, error } = await supabase.from('esg_policies').insert(policy).select().single();
+    const { data, error } = await supabase.from('esg_policies').insert({ id: genId('pol'), ...policy }).select().single();
     if (error) throw error;
     return data;
   },
@@ -439,6 +445,7 @@ export const api = {
 
   async acknowledgePolicy(policyId: string, employee: { employee_id: string; employee_name: string }): Promise<void> {
     const { error } = await supabase.from('policy_acknowledgements').insert({
+      id: genId('ack'),
       policy_id: policyId,
       employee_id: employee.employee_id,
       employee_name: employee.employee_name
@@ -454,7 +461,7 @@ export const api = {
   },
 
   async createAudit(audit: Partial<Audit>): Promise<Audit> {
-    const { data, error } = await supabase.from('audits').insert(audit).select().single();
+    const { data, error } = await supabase.from('audits').insert({ id: genId('aud'), ...audit }).select().single();
     if (error) throw error;
     return data;
   },
@@ -478,7 +485,7 @@ export const api = {
   },
 
   async createComplianceIssue(issue: Partial<ComplianceIssue>): Promise<ComplianceIssue> {
-    const { data, error } = await supabase.from('compliance_issues').insert(issue).select().single();
+    const { data, error } = await supabase.from('compliance_issues').insert({ id: genId('ci'), ...issue }).select().single();
     if (error) throw error;
     return data;
   },
@@ -502,7 +509,7 @@ export const api = {
   },
 
   async createCarbonTransaction(tx: Partial<CarbonTransaction>): Promise<CarbonTransaction> {
-    const { data, error } = await supabase.from('carbon_transactions').insert(tx).select().single();
+    const { data, error } = await supabase.from('carbon_transactions').insert({ id: genId('ct'), ...tx }).select().single();
     if (error) throw error;
     return data;
   },
@@ -526,7 +533,7 @@ export const api = {
   },
 
   async createCSRActivity(act: Partial<CSRActivity>): Promise<CSRActivity> {
-    const { data, error } = await supabase.from('csr_activities').insert(act).select().single();
+    const { data, error } = await supabase.from('csr_activities').insert({ id: genId('csr'), ...act }).select().single();
     if (error) throw error;
     return data;
   },
@@ -552,7 +559,7 @@ export const api = {
   async createEmployeeParticipation(part: Partial<EmployeeParticipation>): Promise<EmployeeParticipation> {
     // A PostgreSQL `date` column accepts NULL for an unfinished activity, but
     // rejects an empty string. Normalize it here for every registration path.
-    const payload = { ...part, completion_date: part.completion_date || null };
+    const payload = { id: genId('part'), ...part, completion_date: part.completion_date || null };
     const { data, error } = await supabase.from('employee_participations').insert(payload).select().single();
     if (error) throw error;
     return data;
@@ -588,7 +595,7 @@ export const api = {
       if (earnedBadgeIds.includes(badge.id)) continue;
 
       let qualifies = false;
-      if (badge.unlock_rule_type === 'xp_earned' && (profile.points || 0) >= (badge.unlock_rule_threshold || 0)) {
+      if (badge.unlock_rule_type === 'xp_earned' && (profile.xp || 0) >= (badge.unlock_rule_threshold || 0)) {
         qualifies = true;
       } else if (badge.unlock_rule_type === 'completed_challenges' && completedChallengesCount >= (badge.unlock_rule_threshold || 0)) {
         qualifies = true;
@@ -723,7 +730,7 @@ export const api = {
   },
 
   async createChallenge(chal: Partial<Challenge>): Promise<Challenge> {
-    const { data, error } = await supabase.from('challenges').insert(chal).select().single();
+    const { data, error } = await supabase.from('challenges').insert({ id: genId('chal'), ...chal }).select().single();
     if (error) throw error;
     return data;
   },
@@ -780,6 +787,7 @@ export const api = {
     }
 
     const createPayload = {
+      id: genId('cp'),
       ...part,
       completion_date: part.completion_date || null,
       approval_status: 'Pending'
@@ -900,6 +908,7 @@ export const api = {
 
   async createBadge(badge: Partial<Badge>): Promise<Badge> {
     const backendBadge = {
+      id: genId('bad'),
       name: badge.name,
       description: badge.description,
       icon: badge.icon,
@@ -928,6 +937,7 @@ export const api = {
 
   async createRewardItem(item: Partial<RewardItem>): Promise<RewardItem> {
     const backendItem = {
+      id: genId('rew'),
       name: item.title,
       description: item.description,
       points_required: item.points_cost,
@@ -970,6 +980,7 @@ export const api = {
     if (rUpdErr) throw rUpdErr;
 
     const { error: redErr } = await supabase.from('reward_redemptions').insert({
+      id: genId('red'),
       reward_id: rewardId,
       employee_id: employeeId,
       employee_name: profile.name,

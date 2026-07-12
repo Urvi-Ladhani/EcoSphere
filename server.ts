@@ -843,7 +843,7 @@ function recalculateDepartmentScores(db: DBState) {
 
 function buildEsgAssistantContext(db: DBState) {
   const openIssues = db.complianceIssues.filter((issue) => issue.status !== 'Resolved');
-  const activeGoals = db.environmentalGoals.filter((goal) => goal.status === 'Active');
+  const activeGoals = db.environmentalGoals.filter((goal) => goal.status !== 'Achieved');
   const activeChallenges = db.challenges.filter((challenge) => challenge.status === 'Active');
   const departmentScores = db.departmentScores.map((score) => {
     const department = db.departments.find((item) => item.id === score.department_id);
@@ -855,7 +855,10 @@ function buildEsgAssistantContext(db: DBState) {
     `Active environmental goals: ${activeGoals.length}; active CSR activities: ${db.csrActivities.filter((activity) => activity.status === 'Active').length}; active challenges: ${activeChallenges.length}.`,
     `Compliance issues: ${openIssues.length} open of ${db.complianceIssues.length} total.`,
     `Department scores: ${departmentScores.join(' | ') || 'No score data available.'}`,
-    `Environmental goals: ${activeGoals.map((goal) => `${goal.title} (${goal.progress}% progress, target ${goal.target_value} ${goal.unit})`).join(' | ') || 'None.'}`
+    `Environmental goals: ${activeGoals.map((goal) => {
+      const progress = goal.target_value ? Math.round((goal.current_value / goal.target_value) * 100) : 0;
+      return `${goal.name} (${progress}% of target, current ${goal.current_value} of ${goal.target_value} ${goal.unit})`;
+    }).join(' | ') || 'None.'}`
   ].join('\n');
 }
 
@@ -1920,14 +1923,14 @@ app.put('/api/challenge-participations/:id', (req, res) => {
     const profile = db.profiles.find((p) => p.id === record.employee_id);
     if (profile) {
       profile.xp += xpToAward;
-      // also award matching redeemable points
-      profile.points += Math.round(xpToAward * 0.5);
+      // Award matching redeemable points 1:1 with XP, consistent with the live client path.
+      profile.points += xpToAward;
 
       if (db.settings.notification_csr_challenge_decision) {
         db.notifications.push({
           id: 'not-' + Math.random().toString(36).substr(2, 9),
           title: 'Challenge Completion Approved!',
-          message: `Your completion of "${challenge?.title}" was approved! You earned ${xpToAward} XP and ${Math.round(xpToAward * 0.5)} redeemable points.`,
+          message: `Your completion of "${challenge?.title}" was approved! You earned ${xpToAward} XP and ${xpToAward} redeemable points.`,
           type: 'Info',
           employee_id: record.employee_id,
           is_read: false,
@@ -1991,22 +1994,35 @@ app.post('/api/notifications/read-all', (req, res) => {
 // custom CSV / EXCEL export simulation
 app.post('/api/export-report', (req, res) => {
   const { title, data } = req.body;
-  if (!data || !Array.isArray(data)) {
+  if (!data || !Array.isArray(data) || data.length > 10_000) {
     return res.status(400).json({ error: 'Data array is required' });
   }
 
+  const escapeCsvValue = (value: unknown) => {
+    const text = String(value ?? '').slice(0, 10_000);
+    // Prevent spreadsheet applications from evaluating exported values as formulas.
+    const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text;
+    return safeText.includes(',') || safeText.includes('\n') || safeText.includes('"')
+      ? `"${safeText.replace(/"/g, '""')}"`
+      : safeText;
+  };
+  const safeTitle = escapeCsvValue(typeof title === 'string' ? title.slice(0, 120) : 'EcoSphere report');
+
   // Generate generic CSV layout text
-  let csvText = `${title}\nExported Date: ${new Date().toISOString().split('T')[0]}\n\n`;
+  let csvText = `${safeTitle}\nExported Date: ${new Date().toISOString().split('T')[0]}\n\n`;
 
   if (data.length > 0) {
-    const keys = Object.keys(data[0]);
-    csvText += keys.join(',') + '\n';
+    const firstRow = data[0];
+    if (!firstRow || typeof firstRow !== 'object' || Array.isArray(firstRow)) {
+      return res.status(400).json({ error: 'Each report row must be an object' });
+    }
+    const keys = Object.keys(firstRow).slice(0, 100);
+    csvText += keys.map(escapeCsvValue).join(',') + '\n';
     data.forEach((row) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return;
       const values = keys.map((key) => {
         const val = row[key];
-        if (val === null || val === undefined) return '';
-        const strVal = String(val).replace(/"/g, '""');
-        return strVal.includes(',') || strVal.includes('\n') ? `"${strVal}"` : strVal;
+        return escapeCsvValue(val);
       });
       csvText += values.join(',') + '\n';
     });

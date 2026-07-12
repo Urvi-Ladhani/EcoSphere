@@ -143,6 +143,13 @@ export default function ReportsModule(props: ReportsModuleProps) {
       if (filterEmployeeId !== 'All') {
         filteredCSR = filteredCSR.filter(p => p.employee_id === filterEmployeeId);
       }
+      if (filterDepartmentId !== 'All') {
+        filteredCSR = filteredCSR.filter((p) => profiles.find((profile) => profile.id === p.employee_id)?.department_id === filterDepartmentId);
+      }
+      if (filterCategoryId !== 'All') {
+        const activityIds = new Set(csrActivities.filter((activity) => activity.category_id === filterCategoryId).map((activity) => activity.id));
+        filteredCSR = filteredCSR.filter((p) => activityIds.has(p.activity_id));
+      }
       const totalCsrPoints = filteredCSR.reduce((sum, p) => sum + p.points_earned, 0);
 
       // 3. Challenges
@@ -153,6 +160,13 @@ export default function ReportsModule(props: ReportsModuleProps) {
       filteredChallenges = filteredChallenges.filter(p => inRange(p.completion_date));
       if (filterChallengeId !== 'All') {
         filteredChallenges = filteredChallenges.filter(p => p.challenge_id === filterChallengeId);
+      }
+      if (filterDepartmentId !== 'All') {
+        filteredChallenges = filteredChallenges.filter((p) => profiles.find((profile) => profile.id === p.employee_id)?.department_id === filterDepartmentId);
+      }
+      if (filterCategoryId !== 'All') {
+        const challengeIds = new Set(challenges.filter((challenge) => challenge.category_id === filterCategoryId).map((challenge) => challenge.id));
+        filteredChallenges = filteredChallenges.filter((p) => challengeIds.has(p.challenge_id));
       }
       const completedChallengesCount = filteredChallenges.length;
 
@@ -302,6 +316,8 @@ This document outlines verified ESG (Environmental, Social, Governance) complian
         })}
       </div>
 
+      {reportError && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">{reportError}</div>}
+
       {/* Tab: ESG Summary (Default Home Page mapping Excalidraw Cards) */}
       {activeSubTab === 'summary' && !compiledReport && (
         <div className="space-y-6 animate-fade-in" id="summary_dashboard">
@@ -321,6 +337,7 @@ This document outlines verified ESG (Environmental, Social, Governance) complian
               <button 
                 onClick={() => {
                   setActiveSubTab('environmental');
+                  runCompileReport('Environmental Impact Brief', 'Environmental');
                 }}
                 className="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold py-1.5 rounded-lg transition cursor-pointer"
               >
@@ -340,6 +357,7 @@ This document outlines verified ESG (Environmental, Social, Governance) complian
               <button 
                 onClick={() => {
                   setActiveSubTab('social');
+                  runCompileReport('Social Engagement & CSR Brief', 'Social');
                 }}
                 className="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold py-1.5 rounded-lg transition cursor-pointer"
               >
@@ -359,6 +377,7 @@ This document outlines verified ESG (Environmental, Social, Governance) complian
               <button 
                 onClick={() => {
                   setActiveSubTab('governance');
+                  runCompileReport('Governance & Compliance Brief', 'Governance');
                 }}
                 className="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold py-1.5 rounded-lg transition cursor-pointer"
               >
@@ -570,9 +589,10 @@ This document outlines verified ESG (Environmental, Social, Governance) complian
             <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
               <Leaf className="w-4 h-4 text-emerald-600" /> Environmental Impact Brief
             </h3>
-            <button onClick={() => window.print()} className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer">
-              <Printer className="w-3.5 h-3.5" /> Print Impact PDF
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => runCompileReport('Environmental Impact Brief', 'Environmental')} className="bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg cursor-pointer">Generate Report</button>
+              <button onClick={() => window.print()} className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"><Printer className="w-3.5 h-3.5" /> Print</button>
+            </div>
           </div>
           <div className="bg-slate-50 border border-slate-100 p-6 rounded-xl font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-slate-800">
             {`### Environmental Operations ESG Analysis Report
@@ -594,9 +614,10 @@ This document outlines verified ESG (Environmental, Social, Governance) complian
             <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
               <Users className="w-4 h-4 text-emerald-600" /> Social Engagement &amp; CSR Report
             </h3>
-            <button onClick={() => window.print()} className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer">
-              <Printer className="w-3.5 h-3.5" /> Print Social PDF
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => runCompileReport('Social Engagement & CSR Brief', 'Social')} className="bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg cursor-pointer">Generate Report</button>
+              <button onClick={() => window.print()} className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"><Printer className="w-3.5 h-3.5" /> Print</button>
+            </div>
           </div>
           <div className="bg-slate-50 border border-slate-100 p-6 rounded-xl font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-slate-800">
             {`### Social Engagement & Inclusivity ESG Report
@@ -618,9 +639,10 @@ This document outlines verified ESG (Environmental, Social, Governance) complian
             <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
               <ShieldAlert className="w-4 h-4 text-emerald-600" /> Governance Policies &amp; Audits Report
             </h3>
-            <button onClick={() => window.print()} className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer">
-              <Printer className="w-3.5 h-3.5" /> Print Audits PDF
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => runCompileReport('Governance & Compliance Brief', 'Governance')} className="bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg cursor-pointer">Generate Report</button>
+              <button onClick={() => window.print()} className="bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer"><Printer className="w-3.5 h-3.5" /> Print</button>
+            </div>
           </div>
           <div className="bg-slate-50 border border-slate-100 p-6 rounded-xl font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-slate-800">
             {`### Corporate Governance & Risk Auditing Report
@@ -704,6 +726,30 @@ ${dbState.audits?.map((a) => {
                   <option value="Environmental">Environmental</option>
                   <option value="Social">Social</option>
                   <option value="Governance">Governance</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Employee</label>
+                <select value={filterEmployeeId} onChange={(e) => setFilterEmployeeId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 font-medium focus:outline-none">
+                  <option value="All">All Employees</option>
+                  {profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Challenge</label>
+                <select value={filterChallengeId} onChange={(e) => setFilterChallengeId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 font-medium focus:outline-none">
+                  <option value="All">All Challenges</option>
+                  {challenges.map((challenge) => <option key={challenge.id} value={challenge.id}>{challenge.title}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">ESG Category</label>
+                <select value={filterCategoryId} onChange={(e) => setFilterCategoryId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 font-medium focus:outline-none">
+                  <option value="All">All Categories</option>
+                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
                 </select>
               </div>
             </div>
