@@ -72,6 +72,20 @@ export default function Auth({ onAuthSuccess }: AuthProps) {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      await api.loginWithGoogle();
+      // The browser is redirected to Google; the auth-state listener completes
+      // the sign-in once Supabase redirects back to this app.
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Unable to start Google sign-in. Please try again.');
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans relative overflow-hidden" id="auth_container">
       {/* Decorative Brand Background Glow Elements */}
@@ -233,6 +247,27 @@ export default function Auth({ onAuthSuccess }: AuthProps) {
             )}
           </button>
         </form>
+
+        <div className="relative my-6" aria-hidden="true">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+          <div className="relative flex justify-center"><span className="bg-white px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">or</span></div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={loading}
+          className="w-full border border-slate-200 bg-white hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 text-slate-700 font-bold text-xs py-3.5 rounded-2xl transition shadow-sm flex items-center justify-center gap-3 cursor-pointer"
+          id="google_sign_in_btn"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M21.35 12.27c0-.79-.07-1.55-.2-2.27H12v4.3h5.23a4.47 4.47 0 0 1-1.94 2.93v2.79h3.14c1.84-1.69 2.92-4.18 2.92-7.75Z" />
+            <path fill="#34A853" d="M12 21.75c2.62 0 4.82-.87 6.43-2.36l-3.14-2.79c-.87.59-1.99.94-3.29.94-2.53 0-4.67-1.71-5.44-4.01H3.32v2.88A9.72 9.72 0 0 0 12 21.75Z" />
+            <path fill="#FBBC05" d="M6.56 13.53A5.86 5.86 0 0 1 6.25 12c0-.53.09-1.04.31-1.53V7.59H3.32A9.75 9.75 0 0 0 2.25 12c0 1.57.38 3.06 1.07 4.41l3.24-2.88Z" />
+            <path fill="#EA4335" d="M12 6.46c1.42 0 2.69.49 3.69 1.44l2.77-2.77C16.81 3.57 14.61 2.25 12 2.25a9.72 9.72 0 0 0-8.68 5.34l3.24 2.88c.77-2.3 2.91-4.01 5.44-4.01Z" />
+          </svg>
+          Continue with Google
+        </button>
 
         {/* Demo Credentials Section */}
         {!isSignUp && (

@@ -182,6 +182,21 @@ export const api = {
     return data;
   },
 
+  async loginWithGoogle() {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        // Return to the app root so this works in local, preview, and production deployments.
+        redirectTo: window.location.origin,
+        queryParams: {
+          prompt: 'select_account'
+        }
+      }
+    });
+    if (error) throw error;
+    return data;
+  },
+
   async signup(email: string, pass: string, name: string, role: string, departmentId: string) {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -213,8 +228,45 @@ export const api = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
     const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-    if (error || !data) return null;
-    return data;
+    if (error) return null;
+    if (data) return data;
+
+    // OAuth users do not pass through the email/password registration form, so
+    // provision their application profile on their first successful sign-in.
+    const { data: department, error: departmentError } = await supabase
+      .from('departments')
+      .select('id')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (departmentError || !department) return null;
+
+    const metadata = user.user_metadata || {};
+    const fallbackName = user.email?.split('@')[0] || 'New employee';
+    const profile: Omit<Profile, 'points_balance' | 'unlocked_badges'> = {
+      id: user.id,
+      name: metadata.full_name || metadata.name || fallbackName,
+      email: user.email || '',
+      role: 'Employee',
+      department_id: department.id,
+      xp: 0,
+      points: 0,
+      avatar: metadata.avatar_url || metadata.picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80'
+    };
+    const { data: createdProfile, error: profileError } = await supabase
+      .from('profiles')
+      .insert(profile)
+      .select()
+      .maybeSingle();
+
+    // Another auth listener can provision the same account first. In that case,
+    // retrieve the profile it created instead of treating the sign-in as failed.
+    if (profileError) {
+      const { data: existingProfile } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      return existingProfile || null;
+    }
+    return createdProfile;
   },
 
   // Profiles
