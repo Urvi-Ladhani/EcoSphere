@@ -36,7 +36,18 @@ import {
   AreaChart,
   Area
 } from 'recharts';
-import { Department, DepartmentScore, CarbonTransaction, ComplianceIssue, Profile, ESGSettings } from '../types';
+import { 
+  Department, 
+  DepartmentScore, 
+  CarbonTransaction, 
+  ComplianceIssue, 
+  Profile, 
+  ESGSettings,
+  Challenge,
+  ChallengeParticipation,
+  ESGPolicy,
+  PolicyAcknowledgement
+} from '../types';
 
 interface DashboardProps {
   dbState: {
@@ -46,13 +57,28 @@ interface DashboardProps {
     complianceIssues: ComplianceIssue[];
     profiles: Profile[];
     settings: ESGSettings;
+    challenges?: Challenge[];
+    challengeParticipations?: ChallengeParticipation[];
+    esgPolicies?: ESGPolicy[];
+    policyAcknowledgements?: PolicyAcknowledgement[];
   };
   setActiveTab: (tab: string) => void;
   setSubTab?: (tabId: string, subTabId: string) => void;
 }
 
 export default function Dashboard({ dbState, setActiveTab, setSubTab }: DashboardProps) {
-  const { departments, departmentScores, carbonTransactions, complianceIssues, profiles, settings } = dbState;
+  const { 
+    departments, 
+    departmentScores, 
+    carbonTransactions, 
+    complianceIssues, 
+    profiles, 
+    settings,
+    challenges = [],
+    challengeParticipations = [],
+    esgPolicies = [],
+    policyAcknowledgements = []
+  } = dbState;
 
   // 1. Calculate Aggregated Scoring
   const avgScores = departmentScores.reduce(
@@ -76,21 +102,57 @@ export default function Dashboard({ dbState, setActiveTab, setSubTab }: Dashboar
   const wGov = settings.weight_governance;
   const overallESGScore = Math.round((avgEnv * wEnv + avgSoc * wSoc + avgGov * wGov) / 100) || 81;
 
-  // Curated 12 month emissions data for curved line chart
-  const emissionsTrendData = [
-    { month: 'Jul', Emissions: 1420 },
-    { month: 'Aug', Emissions: 1350 },
-    { month: 'Sep', Emissions: 1480 },
-    { month: 'Oct', Emissions: 1200 },
-    { month: 'Nov', Emissions: 1100 },
-    { month: 'Dec', Emissions: 950 },
-    { month: 'Jan', Emissions: 1050 },
-    { month: 'Feb', Emissions: 1150 },
-    { month: 'Mar', Emissions: 1380 },
-    { month: 'Apr', Emissions: 1300 },
-    { month: 'May', Emissions: 1250 },
-    { month: 'Jun', Emissions: 1180 }
-  ];
+  // Dynamic monthly emission trend
+  const getMonthlyEmissionsTrend = () => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    // Initialize last 12 months array
+    const trendMap: Record<string, number> = {};
+    const now = new Date();
+    const monthsList: string[] = [];
+    
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthLabel = `${months[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`;
+      monthsList.push(monthLabel);
+      trendMap[monthLabel] = 0;
+    }
+    
+    const approvedTx = carbonTransactions.filter(t => t.status === 'Approved');
+    
+    // If no approved transactions exist in db yet, return a curated default data series
+    if (approvedTx.length === 0) {
+      return [
+        { month: 'Jul', Emissions: 1420 },
+        { month: 'Aug', Emissions: 1350 },
+        { month: 'Sep', Emissions: 1480 },
+        { month: 'Oct', Emissions: 1200 },
+        { month: 'Nov', Emissions: 1100 },
+        { month: 'Dec', Emissions: 950 },
+        { month: 'Jan', Emissions: 1050 },
+        { month: 'Feb', Emissions: 1150 },
+        { month: 'Mar', Emissions: 1380 },
+        { month: 'Apr', Emissions: 1300 },
+        { month: 'May', Emissions: 1250 },
+        { month: 'Jun', Emissions: 1180 }
+      ];
+    }
+    
+    approvedTx.forEach(t => {
+      const tDate = new Date(t.transaction_date);
+      const mLabel = `${months[tDate.getMonth()]} ${String(tDate.getFullYear()).slice(-2)}`;
+      if (trendMap[mLabel] !== undefined) {
+        trendMap[mLabel] += t.calculated_co2;
+      }
+    });
+    
+    return monthsList.map(m => ({
+      month: m,
+      Emissions: Math.round(trendMap[m])
+    }));
+  };
+
+  const emissionsTrendData = getMonthlyEmissionsTrend();
 
   // Map department score totals to bar chart data
   const deptChartData = departmentScores.map(ds => {
@@ -116,6 +178,72 @@ export default function Dashboard({ dbState, setActiveTab, setSubTab }: Dashboar
     { name: 'Corp', Score: 92 },
     { name: 'R&D', Score: 78 }
   ];
+
+  // Dynamic Recent Activity logs compiler
+  const getRecentActivities = () => {
+    const activities: { text: string; date: string; prefix: string; color: string }[] = [];
+
+    // Challenge Participations
+    challengeParticipations.forEach(cp => {
+      if (cp.approval_status === 'Approved') {
+        const chal = challenges.find(c => c.id === cp.challenge_id);
+        activities.push({
+          text: `${cp.employee_name} completed '${chal?.title || 'Challenge'}'`,
+          date: cp.completion_date || new Date().toISOString(),
+          prefix: '✓',
+          color: 'text-emerald-655 bg-emerald-50 border-emerald-100 font-bold'
+        });
+      }
+    });
+
+    // Compliance Issues
+    complianceIssues.forEach(ci => {
+      activities.push({
+        text: `Compliance issue raised: '${ci.description}' (${ci.severity} severity)`,
+        date: ci.due_date || new Date().toISOString(),
+        prefix: '▲',
+        color: 'text-rose-655 bg-rose-50 border-rose-100 font-bold'
+      });
+    });
+
+    // Carbon Transactions
+    carbonTransactions.slice(0, 10).forEach(t => {
+      activities.push({
+        text: `${Math.round(t.calculated_co2).toLocaleString()} kg CO2 logged from ${t.source}`,
+        date: t.transaction_date || new Date().toISOString(),
+        prefix: '📊',
+        color: 'text-blue-655 bg-blue-50 border-blue-100 font-bold'
+      });
+    });
+
+    // Policy Acknowledgements
+    policyAcknowledgements.forEach(pa => {
+      const pol = esgPolicies.find(p => p.id === pa.policy_id);
+      activities.push({
+        text: `${pa.employee_name} signed policy '${pol?.name || 'ESG Policy'}'`,
+        date: pa.acknowledged_at || new Date().toISOString(),
+        prefix: '📝',
+        color: 'text-purple-655 bg-purple-50 border-purple-100 font-bold'
+      });
+    });
+
+    // Sort by date descending
+    activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Fallbacks if empty
+    if (activities.length === 0) {
+      return [
+        { text: "Priya completed 'Zero Waste Week'", prefix: "✓", color: "text-emerald-600 bg-emerald-50 border-emerald-100 font-bold" },
+        { text: "New compliance issue in Logistics", prefix: "▲", color: "text-rose-650 bg-rose-50 border-rose-100 font-bold" },
+        { text: "42 new Carbon Transactions logged", prefix: "📊", color: "text-blue-600 bg-blue-50 border-blue-100 font-bold" },
+        { text: "R&D acknowledged Anti-Corruption Policy", prefix: "📝", color: "text-purple-600 bg-purple-50 border-purple-100 font-bold" }
+      ];
+    }
+
+    return activities.slice(0, 4);
+  };
+
+  const recentActivities = getRecentActivities();
 
   // Quick Action Routing Handler
   const routeTo = (tabId: string, subTabId?: string) => {
@@ -273,12 +401,7 @@ export default function Dashboard({ dbState, setActiveTab, setSubTab }: Dashboar
             Recent Activity
           </h3>
           <div className="space-y-3">
-            {[
-              { text: "Priya completed 'Zero Waste Week'", prefix: "✓", color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
-              { text: "New compliance issue in Logistics", prefix: "▲", color: "text-rose-600 bg-rose-50 border-rose-100" },
-              { text: "42 new Carbon Transactions logged", prefix: "📊", color: "text-blue-600 bg-blue-50 border-blue-100" },
-              { text: "R&D acknowledged Anti-Corruption Policy", prefix: "📝", color: "text-purple-600 bg-purple-50 border-purple-100" }
-            ].map((activity, idx) => (
+            {recentActivities.map((activity, idx) => (
               <div key={idx} className={`p-3 rounded-xl border flex items-center gap-3 ${activity.color}`} id={`activity_item_${idx}`}>
                 <span className="text-sm font-extrabold">{activity.prefix}</span>
                 <span className="text-xs font-bold">{activity.text}</span>
