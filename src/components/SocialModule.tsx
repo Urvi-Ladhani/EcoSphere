@@ -146,11 +146,11 @@ export default function SocialModule(props: SocialModuleProps) {
         proof: '',
         approval_status: 'Pending',
         points_earned: 0,
-        completion_date: ''
+        completion_date: null
       });
       triggerRefresh();
-    } catch (err) {
-      alert('Failed to register join request.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to register join request.');
     }
   };
 
@@ -169,7 +169,7 @@ export default function SocialModule(props: SocialModuleProps) {
         proof: proofInput,
         approval_status: 'Pending',
         points_earned: 0,
-        completion_date: ''
+        completion_date: null
       });
       triggerRefresh();
       resetForms();

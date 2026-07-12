@@ -601,7 +601,7 @@ const INITIAL_DB: DBState = {
       proof: 'Strava ride tracking logs showing three consecutive bike commutes.',
       approval_status: 'Pending',
       xp_awarded: 0,
-      completion_date: ''
+      completion_date: null
     }
   ],
   departmentScores: [
@@ -1675,7 +1675,7 @@ app.post('/api/employee-participations', (req, res) => {
     proof: proof || '',
     approval_status: 'Pending',
     points_earned: 0,
-    completion_date: ''
+    completion_date: null
   };
 
   db.employeeParticipations.push(participation);
@@ -1858,7 +1858,7 @@ app.post('/api/challenge-participations', (req, res) => {
     proof: proof || '',
     approval_status: 'Pending',
     xp_awarded: 0,
-    completion_date: ''
+    completion_date: null
   };
 
   db.challengeParticipations.push(newPart);

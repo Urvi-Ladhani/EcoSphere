@@ -86,7 +86,7 @@ export default function GamificationModule(props: GamificationModuleProps) {
   const [chalDesc, setChalDesc] = useState('');
   const [chalXp, setChalXp] = useState(150);
   const [chalDiff, setChalDiff] = useState<'Easy' | 'Medium' | 'Hard'>('Medium');
-  const [chalDeadline, setChalDeadline] = useState('2026-12-31');
+  const [chalDeadline, setChalDeadline] = useState(() => new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
   const [chalCategoryId, setChalCategoryId] = useState('');
 
   // --- Employee Submit Progress Modal/State ---
@@ -120,7 +120,7 @@ export default function GamificationModule(props: GamificationModuleProps) {
     setChalDesc('');
     setChalXp(150);
     setChalDiff('Medium');
-    setChalDeadline('2026-12-31');
+    setChalDeadline(new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
     const challengeCats = categories.filter(c => c.type === 'Challenge');
     if (challengeCats.length > 0) {
       setChalCategoryId(challengeCats[0].id);
@@ -170,8 +170,8 @@ export default function GamificationModule(props: GamificationModuleProps) {
 
   const handleCreateChallenge = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chalTitle.trim() || chalXp <= 0 || !chalCategoryId) {
-      setErrorMessage('Title, XP, and Category are required.');
+    if (!chalTitle.trim() || chalXp <= 0 || !chalCategoryId || !chalDeadline) {
+      setErrorMessage('Title, XP, category, and deadline are required.');
       return;
     }
     try {
@@ -239,18 +239,18 @@ export default function GamificationModule(props: GamificationModuleProps) {
         proof: '',
         approval_status: 'Pending',
         xp_awarded: 0,
-        completion_date: ''
+        completion_date: null
       });
       triggerRefresh();
     } catch (err: any) {
-      alert('Failed to join challenge.');
+      alert(err.message || 'Failed to join challenge.');
     }
   };
 
   const handleSubmitProgress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeProfile || !selectedChallengeForProgress) return;
-    if (progressInput > 0 && !proofInput.trim()) {
+    if (selectedChallengeForProgress.evidence_required && progressInput > 0 && !proofInput.trim()) {
       alert('Please provide photographic proof/description for validation verification.');
       return;
     }
@@ -305,6 +305,11 @@ export default function GamificationModule(props: GamificationModuleProps) {
 
   // Sort Leaderboard profiles descending by XP
   const sortedProfiles = [...profiles].sort((a, b) => b.xp - a.xp);
+  const availablePoints = activeProfile?.points_balance ?? activeProfile?.points ?? 0;
+  const pendingSubmissions = challengeParticipations.filter((participation) =>
+    participation.approval_status === 'Pending' && participation.progress === 100
+  );
+  const mySubmissions = challengeParticipations.filter((participation) => participation.employee_id === activeProfile?.id);
 
   return (
     <div className="space-y-6" id="gamification_module">
@@ -327,7 +332,7 @@ export default function GamificationModule(props: GamificationModuleProps) {
               <p className="text-xs font-bold text-slate-100 mt-1">{activeProfile.name}</p>
               <div className="flex gap-2.5 mt-1 font-mono text-[9px] text-slate-300">
                 <span>XP: <strong>{activeProfile.xp}</strong></span>
-                <span>Points: <strong>{activeProfile.points_balance}</strong></span>
+                <span>Points: <strong>{availablePoints}</strong></span>
               </div>
             </div>
           </div>
@@ -744,6 +749,7 @@ export default function GamificationModule(props: GamificationModuleProps) {
             ) : (
               challenges.filter(c => c.status === filterStatus).map((c) => {
                 const myPart = challengeParticipations.find(cp => cp.challenge_id === c.id && cp.employee_id === activeProfile?.id);
+                const isExpired = new Date(`${c.deadline}T23:59:59`) < new Date();
                 const difficultyColor = c.difficulty === 'Easy' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
                                         c.difficulty === 'Medium' ? 'text-amber-700 bg-amber-50 border-amber-100' :
                                         'text-rose-700 bg-rose-50 border-rose-100';
@@ -819,7 +825,9 @@ export default function GamificationModule(props: GamificationModuleProps) {
                     </div>
 
                     <div className="mt-6 pt-4 border-t border-slate-105 flex justify-end gap-2" id={`chal_actions_${c.id}`}>
-                      {!myPart ? (
+                      {!myPart ? isExpired ? (
+                        <span className="rounded-xl bg-slate-100 px-3.5 py-1.5 text-xs font-bold text-slate-400">Expired</span>
+                      ) : (
                         <button
                           onClick={() => handleJoinChallenge(c.id)}
                           className="bg-orange-500 hover:bg-orange-605 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition cursor-pointer"
@@ -855,17 +863,13 @@ export default function GamificationModule(props: GamificationModuleProps) {
                 <Award className="w-5 h-5 text-orange-500" /> Badge Gallery
               </h3>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { name: 'Green Beginner', iconEmoji: '🌱', bg: 'bg-emerald-50 border-emerald-100 text-emerald-800' },
-                  { name: 'Carbon Saver', iconEmoji: '💧', bg: 'bg-blue-50 border-blue-100 text-blue-800' },
-                  { name: 'Sustainability Champion', iconEmoji: '🌍', bg: 'bg-indigo-50 border-indigo-100 text-indigo-800' },
-                  { name: 'Team Player', iconEmoji: '⭐', bg: 'bg-amber-50 border-amber-100 text-amber-800' }
-                ].map(wBadge => (
-                  <div key={wBadge.name} className={`p-3 rounded-xl border flex items-center gap-2 ${wBadge.bg}`} id={`wbadge_${wBadge.name.toLowerCase().replace(/\s+/g, '_')}`}>
-                    <span className="text-lg">{wBadge.iconEmoji}</span>
-                    <span className="text-xs font-bold">{wBadge.name}</span>
+                {badges.slice(0, 4).map((badge) => (
+                  <div key={badge.id} className="p-3 rounded-xl border flex items-center gap-2 bg-amber-50 border-amber-100 text-amber-800">
+                    <Award className="h-4 w-4" />
+                    <span className="text-xs font-bold">{badge.name}</span>
                   </div>
                 ))}
+                {badges.length === 0 && <p className="col-span-2 text-xs text-slate-400">No badge criteria configured yet.</p>}
               </div>
             </div>
 
@@ -881,22 +885,12 @@ export default function GamificationModule(props: GamificationModuleProps) {
                   <span className="col-span-2 text-right">XP</span>
                 </div>
                 {sortedProfiles.slice(0, 3).map((p, idx) => {
-                  let deptLabel = p.department_id || 'Corporate Dept';
-                  if (idx === 0) {
-                    deptLabel = 'Manufacturing Dept';
-                  } else if (idx === 1) {
-                    deptLabel = p.name; // Aditi Rao
-                  } else {
-                    deptLabel = 'Corporate Dept';
-                  }
-                  
-                  const xpDisplay = idx === 0 ? 4820 : idx === 1 ? 3910 : 3505;
-
+                  const deptLabel = departments.find((department) => department.id === p.department_id)?.name || 'Unassigned';
                   return (
                     <div key={p.id} className="grid grid-cols-6 text-xs py-1.5 items-center font-medium text-slate-700" id={`wleaderboard_row_${idx}`}>
                       <span className="col-span-1 font-bold text-slate-500">#{idx + 1}</span>
-                      <span className="col-span-3 font-bold text-slate-800">{deptLabel}</span>
-                      <span className="col-span-2 text-right font-mono font-extrabold text-orange-700">{xpDisplay.toLocaleString()}</span>
+                      <span className="col-span-3 font-bold text-slate-800">{p.name} · {deptLabel}</span>
+                      <span className="col-span-2 text-right font-mono font-extrabold text-orange-700">{p.xp.toLocaleString()}</span>
                     </div>
                   );
                 })}
@@ -913,19 +907,19 @@ export default function GamificationModule(props: GamificationModuleProps) {
         <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm animate-fade-in" id="challenge_approvals_panel">
           <div className="border-b border-slate-100 pb-4 mb-4 flex justify-between items-center flex-wrap gap-2">
             <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-orange-500" /> Pending Challenge Evidence Approvals
+              <UserCheck className="w-5 h-5 text-orange-500" /> {isManagement ? 'Pending Challenge Evidence Approvals' : 'My Challenge Submissions'}
             </h3>
-            {settings?.evidence_requirement_enabled && (
+            {isManagement && settings?.evidence_requirement_enabled && (
               <span className="text-[10px] bg-rose-50 border border-rose-150 text-rose-800 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1">
                 <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Evidence Logs Mandated
               </span>
             )}
           </div>
           
-          {challengeParticipations.filter(cp => cp.approval_status === 'Pending' && cp.progress > 0).length === 0 ? (
+          {(isManagement ? pendingSubmissions : mySubmissions).length === 0 ? (
             <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl" id="no_approvals_alert">
               <AlertCircle className="w-8 h-8 text-slate-350 mx-auto mb-2" />
-              <p className="text-xs text-slate-500 font-semibold">No pending challenge submissions require audit review.</p>
+              <p className="text-xs text-slate-500 font-semibold">{isManagement ? 'No 100% challenge submissions require audit review.' : 'You have not joined any challenges yet.'}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -936,11 +930,12 @@ export default function GamificationModule(props: GamificationModuleProps) {
                     <th className="p-3">Challenge Title</th>
                     <th className="p-3 text-center">Progress Submitted</th>
                     <th className="p-3">Evidence Log</th>
-                    <th className="p-3 text-right">Actions</th>
+                    <th className="p-3 text-center">Status</th>
+                    {isManagement && <th className="p-3 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-150">
-                  {challengeParticipations.filter(cp => cp.approval_status === 'Pending' && cp.progress > 0).map((part) => {
+                  {(isManagement ? pendingSubmissions : mySubmissions).map((part) => {
                     const chal = challenges.find(c => c.id === part.challenge_id);
                     return (
                       <tr key={part.id} className="hover:bg-slate-50/50 transition">
@@ -950,22 +945,17 @@ export default function GamificationModule(props: GamificationModuleProps) {
                         <td className="p-3 text-slate-550 font-mono text-[10px] select-all max-w-xs truncate" title={part.proof}>
                           {part.proof || <span className="text-rose-500 italic">No evidence details submitted.</span>}
                         </td>
-                        <td className="p-3 text-right">
-                          <div className="flex justify-end gap-1.5">
-                            <button
-                              onClick={() => handleApproveChallenge(part.id)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition cursor-pointer"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleRejectChallenge(part.id)}
-                              className="bg-rose-500 hover:bg-rose-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition cursor-pointer"
-                            >
-                              Reject
-                            </button>
-                          </div>
+                        <td className="p-3 text-center font-bold text-[10px]">
+                          <span className={part.approval_status === 'Approved' ? 'text-emerald-700' : part.approval_status === 'Rejected' ? 'text-rose-700' : 'text-amber-700'}>{part.approval_status}</span>
                         </td>
+                        {isManagement && (
+                          <td className="p-3 text-right">
+                            <div className="flex justify-end gap-1.5">
+                              <button onClick={() => handleApproveChallenge(part.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition cursor-pointer">Approve</button>
+                              <button onClick={() => handleRejectChallenge(part.id)} className="bg-rose-500 hover:bg-rose-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition cursor-pointer">Reject</button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -1016,7 +1006,7 @@ export default function GamificationModule(props: GamificationModuleProps) {
 
                 <div className="mt-5 pt-3 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase">
                   <span>Requirement</span>
-                  <span className="text-indigo-600 font-extrabold">{b.xp_threshold} XP Milestone</span>
+                  <span className="text-indigo-600 font-extrabold">{b.xp_threshold ?? b.unlock_rule_threshold} XP Milestone</span>
                 </div>
               </div>
             ))}
@@ -1044,7 +1034,7 @@ export default function GamificationModule(props: GamificationModuleProps) {
             {rewardItems.map((rew) => {
               const isOutOfStock = rew.stock <= 0;
               const pointsRequired = rew.points_cost;
-              const hasEnoughPoints = activeProfile ? activeProfile.points_balance >= pointsRequired : false;
+              const hasEnoughPoints = availablePoints >= pointsRequired;
 
               return (
                 <div key={rew.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition" id={`reward_card_${rew.id}`}>

@@ -550,7 +550,10 @@ export const api = {
   },
 
   async createEmployeeParticipation(part: Partial<EmployeeParticipation>): Promise<EmployeeParticipation> {
-    const { data, error } = await supabase.from('employee_participations').insert(part).select().single();
+    // A PostgreSQL `date` column accepts NULL for an unfinished activity, but
+    // rejects an empty string. Normalize it here for every registration path.
+    const payload = { ...part, completion_date: part.completion_date || null };
+    const { data, error } = await supabase.from('employee_participations').insert(payload).select().single();
     if (error) throw error;
     return data;
   },
@@ -732,6 +735,11 @@ export const api = {
   },
 
   async deleteChallenge(id: string): Promise<void> {
+    const { error: participationError } = await supabase
+      .from('challenge_participations')
+      .delete()
+      .eq('challenge_id', id);
+    if (participationError) throw participationError;
     const { error } = await supabase.from('challenges').delete().eq('id', id);
     if (error) throw error;
   },
@@ -752,9 +760,18 @@ export const api = {
       .maybeSingle();
 
     if (existing) {
+      if (existing.approval_status === 'Approved') {
+        throw new Error('This challenge has already been approved and credited.');
+      }
+      const updatePayload = {
+        ...part,
+        completion_date: part.completion_date || null,
+        approval_status: 'Pending',
+        rejection_reason: null
+      };
       const { data, error } = await supabase
         .from('challenge_participations')
-        .update(part)
+        .update(updatePayload)
         .eq('id', existing.id)
         .select()
         .single();
@@ -762,7 +779,12 @@ export const api = {
       return data;
     }
 
-    const { data, error } = await supabase.from('challenge_participations').insert(part).select().single();
+    const createPayload = {
+      ...part,
+      completion_date: part.completion_date || null,
+      approval_status: 'Pending'
+    };
+    const { data, error } = await supabase.from('challenge_participations').insert(createPayload).select().single();
     if (error) throw error;
     return data;
   },
@@ -777,6 +799,10 @@ export const api = {
 
     const oldStatus = current.approval_status;
     const newStatus = part.approval_status || current.approval_status;
+
+    if (newStatus === 'Approved' && current.progress < 100) {
+      throw new Error('Only a 100% completion submission can be approved and credited.');
+    }
 
     const settings = await this.getSettings();
     if (newStatus === 'Approved' && settings.evidence_requirement_enabled) {

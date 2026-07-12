@@ -167,7 +167,7 @@ export interface EmployeeParticipation {
   approval_status: 'Pending' | 'Approved' | 'Rejected';
   rejection_reason?: string;
   points_earned: number;
-  completion_date: string;
+  completion_date: string | null;
 }
 
 export interface Challenge {
@@ -192,7 +192,7 @@ export interface ChallengeParticipation {
   approval_status: 'Pending' | 'Approved' | 'Rejected';
   rejection_reason?: string;
   xp_awarded: number;
-  completion_date: string;
+  completion_date: string | null;
 }
 
 export interface DepartmentScore {
