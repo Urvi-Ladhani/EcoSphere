@@ -57,4 +57,4 @@ afterward.
 browser bundle. With the server running, the floating **Ask ESG Assistant**
 button answers questions using Gemini and a compact, current EcoSphere ESG
 snapshot. Optionally set `GEMINI_MODEL` in `.env` to use a different Gemini
-model; the default is `gemini-3.5-flash`
+model; the default is `gemini-3.5-flash`.
