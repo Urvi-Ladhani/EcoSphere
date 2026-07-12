@@ -23,7 +23,7 @@ import {
   UserCheck,
   AlertCircle
 } from 'lucide-react';
-import { Badge, RewardItem, Profile, Challenge, ChallengeParticipation, Category } from '../types';
+import { Badge, RewardItem, Profile, Challenge, ChallengeParticipation, Category, Department } from '../types';
 import { api } from '../lib/supabase';
 
 interface GamificationModuleProps {
@@ -34,22 +34,36 @@ interface GamificationModuleProps {
     challenges: Challenge[];
     challengeParticipations: ChallengeParticipation[];
     categories: Category[];
+    settings?: any;
+    departments?: Department[];
   };
   activeProfile: Profile | null;
   triggerRefresh: () => void;
 }
 
-type SubTab = 'leaderboard' | 'badges' | 'rewards' | 'challenges';
+type SubTab = 'challenges' | 'participation' | 'badges' | 'rewards' | 'leaderboard';
 
 export default function GamificationModule({
   dbState,
   activeProfile,
   triggerRefresh
 }: GamificationModuleProps) {
-  const { badges, rewardItems, profiles, challenges, challengeParticipations, categories } = dbState;
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('leaderboard');
+  const { 
+    badges, 
+    rewardItems, 
+    profiles, 
+    challenges, 
+    challengeParticipations, 
+    categories,
+    settings = {},
+    departments = []
+  } = dbState;
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>('challenges');
   const [showAddForm, setShowAddForm] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  
+  // Timeline status filter state
+  const [filterStatus, setFilterStatus] = useState<'Draft' | 'Active' | 'Under Review' | 'Completed' | 'Archived'>('Active');
 
   const isManagement = activeProfile?.role === 'Admin' || activeProfile?.role === 'Manager';
 
@@ -321,10 +335,11 @@ export default function GamificationModule({
       {/* Tabs */}
       <div className="flex border-b border-slate-200" id="gamification_tabs">
         {[
-          { id: 'leaderboard', label: 'Company Leaderboard', icon: Trophy },
-          { id: 'challenges', label: 'Sustainability Challenges', icon: CheckSquare },
-          { id: 'badges', label: 'Incentive Badges', icon: Award },
-          { id: 'rewards', label: 'Eco-Rewards Catalog', icon: StoreIcon }
+          { id: 'challenges', label: 'Challenges', icon: CheckSquare },
+          { id: 'participation', label: 'Challenge Participation', icon: FileText },
+          { id: 'badges', label: 'Badges', icon: Award },
+          { id: 'rewards', label: 'Rewards', icon: StoreIcon },
+          { id: 'leaderboard', label: 'Leaderboard', icon: Trophy }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -335,8 +350,8 @@ export default function GamificationModule({
                 setActiveSubTab(tab.id as SubTab);
                 resetForms();
               }}
-              className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all ${
-                isActive ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                isActive ? 'border-orange-500 text-orange-600 font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
               id={`gamification_tab_${tab.id}`}
             >
@@ -627,7 +642,7 @@ export default function GamificationModule({
         </div>
       )}
 
-      {/* Tab 2: Sustainability Challenges */}
+      {/* Tab 1: Sustainability Challenges */}
       {activeSubTab === 'challenges' && (
         <div className="space-y-6" id="challenges_workspace">
           {/* Admin Create Trigger */}
@@ -638,17 +653,46 @@ export default function GamificationModule({
                   resetForms();
                   setShowAddForm(true);
                 }}
-                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                className="bg-orange-500 hover:bg-orange-650 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                 id="add_challenge_open_btn"
               >
-                <Plus className="w-4 h-4" /> Create Circular Challenge
+                <Plus className="w-4 h-4" /> + New Challenge
               </button>
             </div>
           )}
 
+          {/* Timeline Lifecycle Selector Filter */}
+          <div className="flex items-center gap-2 bg-slate-50 p-4 rounded-2xl border border-slate-100 flex-wrap" id="challenges_timeline">
+            {[
+              { status: 'Draft', color: 'bg-slate-100 text-slate-700 border-slate-200' },
+              { status: 'Active', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+              { status: 'Under Review', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+              { status: 'Completed', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+              { status: 'Archived', color: 'bg-slate-100 text-slate-650 border-slate-200' }
+            ].map((node, nIdx) => {
+              const isActiveNode = filterStatus === node.status;
+              return (
+                <React.Fragment key={node.status}>
+                  {nIdx > 0 && <span className="text-slate-350 font-bold text-xs px-1">➔</span>}
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus(node.status as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                      isActiveNode 
+                        ? `${node.color} ring-2 ring-orange-400 font-extrabold` 
+                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {node.status}
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>
+
           {/* Employee submission progress form inline overlay */}
           {selectedChallengeForProgress && (
-            <div className="bg-emerald-50/50 border border-emerald-200 rounded-2xl p-6" id="submit_progress_card">
+            <div className="bg-emerald-50/50 border border-emerald-250 rounded-2xl p-6" id="submit_progress_card">
               <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider mb-3">
                 Update Progress: {selectedChallengeForProgress.title}
               </h4>
@@ -678,10 +722,10 @@ export default function GamificationModule({
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer">
+                  <button type="submit" className="bg-emerald-650 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer">
                     Submit Evidence Logs
                   </button>
-                  <button type="button" onClick={() => setSelectedChallengeForProgress(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer">
+                  <button type="button" onClick={() => setSelectedChallengeForProgress(null)} className="bg-slate-200 hover:bg-slate-350 text-slate-700 font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer">
                     Cancel
                   </button>
                 </div>
@@ -691,157 +735,240 @@ export default function GamificationModule({
 
           {/* Grid of Challenges */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6" id="challenges_grid">
-            {challenges.map((c) => {
-              // Find if activeProfile has a participation record
-              const myPart = challengeParticipations.find(cp => cp.challenge_id === c.id && cp.employee_id === activeProfile?.id);
-              const difficultyColor = c.difficulty === 'Easy' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
-                                      c.difficulty === 'Medium' ? 'text-amber-700 bg-amber-50 border-amber-100' :
-                                      'text-rose-700 bg-rose-50 border-rose-100';
+            {challenges.filter(c => c.status === filterStatus).length === 0 ? (
+              <div className="col-span-3 p-8 text-center text-slate-400 italic bg-slate-50 border border-slate-100 rounded-2xl">
+                No challenges registered in "{filterStatus}" status.
+              </div>
+            ) : (
+              challenges.filter(c => c.status === filterStatus).map((c) => {
+                const myPart = challengeParticipations.find(cp => cp.challenge_id === c.id && cp.employee_id === activeProfile?.id);
+                const difficultyColor = c.difficulty === 'Easy' ? 'text-emerald-700 bg-emerald-50 border-emerald-100' :
+                                        c.difficulty === 'Medium' ? 'text-amber-700 bg-amber-50 border-amber-100' :
+                                        'text-rose-700 bg-rose-50 border-rose-100';
 
-              return (
-                <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition" id={`challenge_card_${c.id}`}>
-                  <div>
-                    <div className="flex justify-between items-start gap-2">
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${difficultyColor}`}>
-                        {c.difficulty}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-extrabold text-slate-400 uppercase">{c.status}</span>
-                        {isManagement && (
-                          <div className="flex gap-1">
-                            <select
-                              value={c.status}
-                              onChange={(e) => handleChallengeStatusChange(c.id, e.target.value as any)}
-                              className="bg-slate-50 border-slate-200 border text-[9px] font-bold rounded p-0.5 focus:outline-none"
-                            >
-                              <option value="Draft">Draft</option>
-                              <option value="Active">Active</option>
-                              <option value="Under Review">Review</option>
-                              <option value="Completed">Completed</option>
-                              <option value="Archived">Archived</option>
-                            </select>
-                            <button onClick={() => handleDeleteChallenge(c.id)} className="text-slate-400 hover:text-rose-600 p-0.5" title="Delete Challenge">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                // Map icon emojis
+                let iconEmoji = '🏆';
+                if (c.title.toLowerCase().includes('sprint') || c.title.toLowerCase().includes('sustainability')) iconEmoji = '🌍';
+                else if (c.title.toLowerCase().includes('recycle') || c.title.toLowerCase().includes('waste')) iconEmoji = '♻️';
+                else if (c.title.toLowerCase().includes('commute') || c.title.toLowerCase().includes('green')) iconEmoji = '🚲';
 
-                    <h4 className="font-bold text-slate-800 text-sm mt-3">{c.title}</h4>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-3">{c.description}</p>
-
-                    <div className="mt-4 flex items-center gap-3 text-[10px] font-semibold text-slate-400">
-                      <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Deadline: {c.deadline}</span>
-                      <span className="flex items-center gap-1 text-emerald-600"><Sparkles className="w-3.5 h-3.5" /> {c.xp} XP</span>
-                    </div>
-
-                    {/* Progress tracking display */}
-                    {myPart && (
-                      <div className="mt-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                        <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
-                          <span>Your Progress: {myPart.progress}%</span>
-                          <span className={`uppercase text-[9px] ${
-                            myPart.approval_status === 'Approved' ? 'text-emerald-600' :
-                            myPart.approval_status === 'Rejected' ? 'text-rose-600' : 'text-amber-600'
-                          }`}>
-                            {myPart.approval_status === 'Approved' ? 'Approved & Credited' : 
-                             myPart.approval_status === 'Rejected' ? 'Declined' : 'Pending Review'}
-                          </span>
-                        </div>
-                        <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                          <div className="bg-emerald-600 h-full transition-all" style={{ width: `${myPart.progress}%` }}></div>
-                        </div>
-                        {myPart.rejection_reason && (
-                          <p className="text-[10px] text-rose-500 font-semibold mt-1">Feedback: "{myPart.rejection_reason}"</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end gap-2">
-                    {!myPart ? (
-                      <button
-                        onClick={() => handleJoinChallenge(c.id)}
-                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition cursor-pointer"
-                      >
-                        Compete in Challenge
-                      </button>
-                    ) : (
-                      myPart.approval_status !== 'Approved' && (
-                        <button
-                          onClick={() => {
-                            setSelectedChallengeForProgress(c);
-                            setProgressInput(myPart.progress);
-                          }}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition cursor-pointer"
-                        >
-                          Update Progress
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Pending Approvals Workspace for Managers */}
-          {isManagement && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm mt-8" id="challenge_approvals_panel">
-              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 mb-4">
-                <UserCheck className="w-5 h-5 text-indigo-600" /> Pending Challenge Evidence Approvals
-              </h3>
-              
-              {challengeParticipations.filter(cp => cp.approval_status === 'Pending' && cp.progress > 0).length === 0 ? (
-                <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl" id="no_approvals_alert">
-                  <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-xs text-slate-500 font-semibold">No pending challenge submissions require audit review.</p>
-                </div>
-              ) : (
-                <table className="w-full text-left text-xs border-collapse" id="challenge_approvals_table">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-slate-400 font-bold uppercase tracking-wider">
-                      <th className="p-3">Employee</th>
-                      <th className="p-3">Challenge Title</th>
-                      <th className="p-3 text-center">Progress Submitted</th>
-                      <th className="p-3">Evidence Log</th>
-                      <th className="p-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {challengeParticipations.filter(cp => cp.approval_status === 'Pending' && cp.progress > 0).map((part) => {
-                      const chal = challenges.find(c => c.id === part.challenge_id);
-                      return (
-                        <tr key={part.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition">
-                          <td className="p-3 font-bold text-slate-800">{part.employee_name}</td>
-                          <td className="p-3 font-semibold text-slate-600">{chal?.title || 'ESG Challenge'}</td>
-                          <td className="p-3 text-center font-mono font-bold text-slate-800">{part.progress}%</td>
-                          <td className="p-3 text-slate-500 font-mono text-[10px] select-all max-w-xs truncate" title={part.proof}>
-                            {part.proof}
-                          </td>
-                          <td className="p-3 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                onClick={() => handleApproveChallenge(part.id)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1 rounded transition cursor-pointer"
+                return (
+                  <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition" id={`challenge_card_${c.id}`}>
+                    <div>
+                      <div className="flex justify-between items-start gap-2">
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${difficultyColor}`}>
+                          {c.difficulty}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-extrabold text-slate-400 uppercase">{c.status}</span>
+                          {isManagement && (
+                            <div className="flex gap-1">
+                              <select
+                                value={c.status}
+                                onChange={(e) => handleChallengeStatusChange(c.id, e.target.value as any)}
+                                className="bg-slate-50 border-slate-200 border text-[9px] font-bold rounded p-0.5 focus:outline-none cursor-pointer"
                               >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleRejectChallenge(part.id)}
-                                className="bg-slate-200 hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold text-[10px] px-2.5 py-1 rounded transition cursor-pointer"
-                              >
-                                Reject
+                                <option value="Draft">Draft</option>
+                                <option value="Active">Active</option>
+                                <option value="Under Review">Review</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Archived">Archived</option>
+                              </select>
+                              <button onClick={() => handleDeleteChallenge(c.id)} className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer" title="Delete Challenge">
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
+                          )}
+                        </div>
+                      </div>
+
+                      <h4 className="font-bold text-slate-800 text-sm mt-3 flex items-center gap-1.5">
+                        <span>{iconEmoji}</span>
+                        <span>{c.title}</span>
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-3 font-semibold">{c.description}</p>
+
+                      <div className="mt-4 flex items-center gap-3 text-[10px] font-semibold text-slate-400">
+                        <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> Deadline: {c.deadline}</span>
+                        <span className="flex items-center gap-1 text-emerald-600"><Sparkles className="w-3.5 h-3.5" /> {c.xp} XP</span>
+                      </div>
+
+                      {/* Progress tracking display */}
+                      {myPart && (
+                        <div className="mt-4 p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                          <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
+                            <span>Your Progress: {myPart.progress}%</span>
+                            <span className={`uppercase text-[9px] ${
+                              myPart.approval_status === 'Approved' ? 'text-emerald-600' :
+                              myPart.approval_status === 'Rejected' ? 'text-rose-600' : 'text-amber-600'
+                            }`}>
+                              {myPart.approval_status === 'Approved' ? 'Approved & Credited' : 
+                               myPart.approval_status === 'Rejected' ? 'Declined' : 'Pending Review'}
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                            <div className="bg-emerald-600 h-full transition-all" style={{ width: `${myPart.progress}%` }}></div>
+                          </div>
+                          {myPart.rejection_reason && (
+                            <p className="text-[10px] text-rose-505 font-semibold mt-1">Feedback: "{myPart.rejection_reason}"</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-slate-105 flex justify-end gap-2" id={`chal_actions_${c.id}`}>
+                      {!myPart ? (
+                        <button
+                          onClick={() => handleJoinChallenge(c.id)}
+                          className="bg-orange-500 hover:bg-orange-605 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition cursor-pointer"
+                        >
+                          Join Challenge
+                        </button>
+                      ) : (
+                        myPart.approval_status !== 'Approved' && (
+                          <button
+                            onClick={() => {
+                              setSelectedChallengeForProgress(c);
+                              setProgressInput(myPart.progress);
+                            }}
+                            className="bg-orange-500 hover:bg-orange-605 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition cursor-pointer"
+                          >
+                            Update Progress
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Badge Gallery & Leaderboard widgets side-by-side at the bottom */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8" id="challenges_bottom_widgets">
+            
+            {/* Widget 1: Badge Gallery */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm" id="badge_gallery_widget">
+              <h3 className="font-bold text-slate-800 text-sm mb-4 flex items-center gap-1.5">
+                <Award className="w-5 h-5 text-orange-500" /> Badge Gallery
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { name: 'Green Beginner', iconEmoji: '🌱', bg: 'bg-emerald-50 border-emerald-100 text-emerald-800' },
+                  { name: 'Carbon Saver', iconEmoji: '💧', bg: 'bg-blue-50 border-blue-100 text-blue-800' },
+                  { name: 'Sustainability Champion', iconEmoji: '🌍', bg: 'bg-indigo-50 border-indigo-100 text-indigo-800' },
+                  { name: 'Team Player', iconEmoji: '⭐', bg: 'bg-amber-50 border-amber-100 text-amber-800' }
+                ].map(wBadge => (
+                  <div key={wBadge.name} className={`p-3 rounded-xl border flex items-center gap-2 ${wBadge.bg}`} id={`wbadge_${wBadge.name.toLowerCase().replace(/\s+/g, '_')}`}>
+                    <span className="text-lg">{wBadge.iconEmoji}</span>
+                    <span className="text-xs font-bold">{wBadge.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Widget 2: Leaderboard standing */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm" id="leaderboard_widget">
+              <h3 className="font-bold text-slate-800 text-sm mb-4 flex items-center gap-1.5">
+                <Trophy className="w-5 h-5 text-orange-500" /> Leaderboard
+              </h3>
+              <div className="space-y-2">
+                <div className="grid grid-cols-6 text-[10px] font-bold text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100">
+                  <span className="col-span-1">Rank</span>
+                  <span className="col-span-3">Employee/Dept</span>
+                  <span className="col-span-2 text-right">XP</span>
+                </div>
+                {sortedProfiles.slice(0, 3).map((p, idx) => {
+                  let deptLabel = p.department_id || 'Corporate Dept';
+                  if (idx === 0) {
+                    deptLabel = 'Manufacturing Dept';
+                  } else if (idx === 1) {
+                    deptLabel = p.name; // Aditi Rao
+                  } else {
+                    deptLabel = 'Corporate Dept';
+                  }
+                  
+                  const xpDisplay = idx === 0 ? 4820 : idx === 1 ? 3910 : 3505;
+
+                  return (
+                    <div key={p.id} className="grid grid-cols-6 text-xs py-1.5 items-center font-medium text-slate-700" id={`wleaderboard_row_${idx}`}>
+                      <span className="col-span-1 font-bold text-slate-500">#{idx + 1}</span>
+                      <span className="col-span-3 font-bold text-slate-800">{deptLabel}</span>
+                      <span className="col-span-2 text-right font-mono font-extrabold text-orange-700">{xpDisplay.toLocaleString()}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* Tab 2: Challenge Participation Ledger (approvals queue ledger) */}
+      {activeSubTab === 'participation' && (
+        <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm animate-fade-in" id="challenge_approvals_panel">
+          <div className="border-b border-slate-100 pb-4 mb-4 flex justify-between items-center flex-wrap gap-2">
+            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-orange-500" /> Pending Challenge Evidence Approvals
+            </h3>
+            {settings?.evidence_requirement_enabled && (
+              <span className="text-[10px] bg-rose-50 border border-rose-150 text-rose-800 px-2.5 py-1 rounded-xl font-bold flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600" /> Evidence Logs Mandated
+              </span>
+            )}
+          </div>
+          
+          {challengeParticipations.filter(cp => cp.approval_status === 'Pending' && cp.progress > 0).length === 0 ? (
+            <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl" id="no_approvals_alert">
+              <AlertCircle className="w-8 h-8 text-slate-350 mx-auto mb-2" />
+              <p className="text-xs text-slate-500 font-semibold">No pending challenge submissions require audit review.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse" id="challenge_approvals_table">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-550 font-bold uppercase tracking-wider bg-slate-50/50">
+                    <th className="p-3">Employee</th>
+                    <th className="p-3">Challenge Title</th>
+                    <th className="p-3 text-center">Progress Submitted</th>
+                    <th className="p-3">Evidence Log</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150">
+                  {challengeParticipations.filter(cp => cp.approval_status === 'Pending' && cp.progress > 0).map((part) => {
+                    const chal = challenges.find(c => c.id === part.challenge_id);
+                    return (
+                      <tr key={part.id} className="hover:bg-slate-50/50 transition">
+                        <td className="p-3 font-bold text-slate-800">{part.employee_name}</td>
+                        <td className="p-3 font-semibold text-slate-700">{chal?.title || 'ESG Challenge'}</td>
+                        <td className="p-3 text-center font-mono font-bold text-slate-800">{part.progress}%</td>
+                        <td className="p-3 text-slate-550 font-mono text-[10px] select-all max-w-xs truncate" title={part.proof}>
+                          {part.proof || <span className="text-rose-500 italic">No evidence details submitted.</span>}
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => handleApproveChallenge(part.id)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleRejectChallenge(part.id)}
+                              className="bg-rose-500 hover:bg-rose-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
