@@ -1,0 +1,6 @@
+{
+  "name": "EcoSphere ESG Platform",
+  "description": "EcoSphere is a comprehensive ESG (Environmental, Social, and Governance) Management Platform featuring carbon accounting, CSR activities, compliance policies, audits, and gamified employee engagement.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
