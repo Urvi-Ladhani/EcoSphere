@@ -18,7 +18,10 @@ import {
   Bookmark,
   Sparkles,
   Barcode,
-  Target
+  Target,
+  Search,
+  Eye,
+  Pencil
 } from 'lucide-react';
 import { CarbonTransaction, EmissionFactor, ProductESGProfile, EnvironmentalGoal } from '../types';
 import { api } from '../lib/supabase';
@@ -76,10 +79,18 @@ export default function EnvironmentalModule({
   const [goalCurrentValue, setGoalCurrentValue] = useState(0);
   const [goalUnit, setGoalUnit] = useState('');
   const [goalDate, setGoalDate] = useState('');
+  const [goalStatusSelect, setGoalStatusSelect] = useState<'On Track' | 'At Risk' | 'Achieved'>('On Track');
+
+  // Advanced Goal UI States
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
 
   const resetForms = () => {
     setShowAddForm(false);
     setErrorMessage('');
+    setSelectedGoalId(null);
+    setIsEditingGoal(false);
     // Tx
     setTxLinkedEntity('');
     setTxValue(0);
@@ -104,6 +115,7 @@ export default function EnvironmentalModule({
     setGoalCurrentValue(0);
     setGoalUnit('');
     setGoalDate('');
+    setGoalStatusSelect('On Track');
   };
 
   const handleCreateTransaction = async (e: React.FormEvent) => {
@@ -181,20 +193,68 @@ export default function EnvironmentalModule({
       return;
     }
     try {
-      await api.createEnvironmentalGoal({
-        name: goalName,
-        target_metric: goalMetric,
-        target_value: Number(goalTargetValue),
-        current_value: Number(goalCurrentValue),
-        unit: goalUnit,
-        target_date: goalDate,
-        status: 'On Track'
-      });
+      if (isEditingGoal && selectedGoalId) {
+        await api.updateEnvironmentalGoal(selectedGoalId, {
+          name: goalName,
+          target_metric: goalMetric,
+          target_value: Number(goalTargetValue),
+          current_value: Number(goalCurrentValue),
+          unit: goalUnit,
+          target_date: goalDate,
+          status: goalStatusSelect
+        });
+      } else {
+        await api.createEnvironmentalGoal({
+          name: goalName,
+          target_metric: goalMetric,
+          target_value: Number(goalTargetValue),
+          current_value: Number(goalCurrentValue),
+          unit: goalUnit,
+          target_date: goalDate,
+          status: 'On Track'
+        });
+      }
       triggerRefresh();
       resetForms();
     } catch (err: any) {
-      setErrorMessage('Failed to log goal.');
+      setErrorMessage(isEditingGoal ? 'Failed to update goal.' : 'Failed to log goal.');
     }
+  };
+
+  const handleEditGoalClick = (goal: EnvironmentalGoal) => {
+    resetForms();
+    setSelectedGoalId(goal.id);
+    setIsEditingGoal(true);
+    setGoalName(goal.name);
+    setGoalMetric(goal.target_metric);
+    setGoalTargetValue(goal.target_value);
+    setGoalCurrentValue(goal.current_value);
+    setGoalUnit(goal.unit);
+    setGoalDate(goal.target_date);
+    setGoalStatusSelect(goal.status);
+    setShowAddForm(true);
+  };
+
+  const handleExportGoalsCSV = () => {
+    let csv = "Goal Name,Department/Metric,Target CO2,Current CO2,Progress,Deadline,Status\n";
+    environmentalGoals.forEach(g => {
+      const progressPct = g.target_value > 0 ? Math.min(100, Math.round((g.current_value / g.target_value) * 100)) : 0;
+      let deptName = 'Corporate';
+      if (g.name.toLowerCase().includes('fleet') || g.target_metric.toLowerCase().includes('fleet') || g.target_metric.toLowerCase().includes('operations')) {
+        deptName = 'Logistics';
+      } else if (g.name.toLowerCase().includes('packaging') || g.target_metric.toLowerCase().includes('manufacturing')) {
+        deptName = 'Manufacturing';
+      }
+      csv += `"${g.name}","${deptName}","${g.target_value} ${g.unit}","${g.current_value} ${g.unit}",${progressPct}%,${g.target_date},${g.status}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "environmental_goals_report.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleApproveTransaction = async (id: string) => {
@@ -607,6 +667,21 @@ export default function EnvironmentalModule({
                 </div>
               </div>
 
+              {isEditingGoal && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Current Goal Status</label>
+                  <select
+                    value={goalStatusSelect}
+                    onChange={(e) => setGoalStatusSelect(e.target.value as any)}
+                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 font-medium"
+                  >
+                    <option value="On Track">On Track</option>
+                    <option value="At Risk">Active (At Risk)</option>
+                    <option value="Achieved">Completed (Achieved)</option>
+                  </select>
+                </div>
+              )}
+
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
                 <button type="button" onClick={resetForms} className="bg-slate-100 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl">Cancel</button>
                 <button type="submit" className="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl">Save Goal</button>
@@ -782,50 +857,172 @@ export default function EnvironmentalModule({
 
       {/* Tab 4 Content: Sustainability Goals */}
       {activeSubTab === 'goals' && (
-        <div className="space-y-4" id="goals_list_container">
-          {environmentalGoals.map((goal) => {
-            const progressRatio = goal.target_value > 0 ? (goal.current_value / goal.target_value) : 0;
-            const progressPct = Math.min(100, Math.round(progressRatio * 100));
-            return (
-              <div key={goal.id} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" id={`goal_card_${goal.id}`}>
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[9px] uppercase tracking-wide font-bold ${
-                      goal.status === 'Achieved' ? 'bg-emerald-100 text-emerald-800' :
-                      goal.status === 'At Risk' ? 'bg-rose-100 text-rose-800' :
-                      'bg-blue-100 text-blue-800'
-                    }`}>
-                      {goal.status}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-semibold">Deadline: {goal.target_date}</span>
-                  </div>
-                  <h4 className="font-bold text-slate-800 text-sm">{goal.name}</h4>
-                  <p className="text-[11px] text-slate-500 font-medium">Metric: <strong>{goal.target_metric}</strong></p>
-
-                  {/* Progress Slider */}
-                  <div className="pt-3 max-w-md">
-                    <div className="flex justify-between text-[10px] text-slate-500 font-medium mb-1">
-                      <span>Goal Progress</span>
-                      <span>{goal.current_value.toLocaleString()} / {goal.target_value.toLocaleString()} {goal.unit} ({progressPct}%)</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${goal.status === 'Achieved' ? 'bg-emerald-500' : goal.status === 'At Risk' ? 'bg-rose-500' : 'bg-blue-500'}`} style={{ width: `${progressPct}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-
-                {canEdit && (
+        <div className="space-y-4" id="goals_workspace">
+          {/* Action Bar */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 flex-wrap" id="goals_action_bar">
+            <div className="flex items-center gap-2 flex-wrap">
+              {canEdit && (
+                <>
                   <button
-                    onClick={() => handleDeleteGoal(goal.id)}
-                    className="text-slate-400 hover:text-rose-600 p-2 border border-slate-100 rounded-xl hover:bg-slate-50 transition"
-                    id={`delete_goal_${goal.id}`}
+                    onClick={() => {
+                      resetForms();
+                      setShowAddForm(true);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1 cursor-pointer transition shadow-sm"
+                    id="new_goal_btn"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Plus className="w-3.5 h-3.5" /> + New Goal
                   </button>
-                )}
-              </div>
-            );
-          })}
+                  <button
+                    onClick={() => {
+                      const selectedGoal = environmentalGoals.find(g => g.id === selectedGoalId);
+                      if (selectedGoal) handleEditGoalClick(selectedGoal);
+                    }}
+                    disabled={!selectedGoalId}
+                    className={`text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-1 cursor-pointer border ${
+                      selectedGoalId 
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-500 shadow-sm' 
+                        : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                    }`}
+                    id="edit_goal_btn"
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedGoalId) handleDeleteGoal(selectedGoalId);
+                    }}
+                    disabled={!selectedGoalId}
+                    className={`text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-1 cursor-pointer border ${
+                      selectedGoalId 
+                        ? 'bg-rose-500 hover:bg-rose-600 text-white border-rose-400 shadow-sm' 
+                        : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                    }`}
+                    id="delete_goal_btn"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                </>
+              )}
+              <button
+                onClick={handleExportGoalsCSV}
+                className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl border border-slate-300 transition cursor-pointer flex items-center gap-1"
+                id="export_goals_btn"
+              >
+                Export ▾
+              </button>
+            </div>
+
+            {/* Search Box */}
+            <div className="relative w-full sm:w-64" id="goals_search_container">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+              <input
+                type="text"
+                placeholder="Search goals..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-white border border-slate-200 text-xs rounded-xl p-2.5 pl-9 font-medium focus:outline-none focus:border-emerald-500 shadow-inner"
+              />
+            </div>
+          </div>
+
+          {/* Goals Spreadsheet Grid */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" id="goals_ledger_table_container">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100/50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider">
+                    <th className="p-3">Name</th>
+                    <th className="p-3">Department</th>
+                    <th className="p-3 text-right">Target CO₂</th>
+                    <th className="p-3 text-right">Current CO₂</th>
+                    <th className="p-3">Progress</th>
+                    <th className="p-3">Deadline</th>
+                    <th className="p-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150">
+                  {environmentalGoals.filter(g => 
+                    g.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                    g.target_metric.toLowerCase().includes(searchTerm.toLowerCase())
+                  ).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-400 italic">No sustainability goals match search criteria.</td>
+                    </tr>
+                  ) : (
+                    environmentalGoals.filter(g => 
+                      g.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                      g.target_metric.toLowerCase().includes(searchTerm.toLowerCase())
+                    ).map((goal) => {
+                      const isSelected = selectedGoalId === goal.id;
+                      const progressRatio = goal.target_value > 0 ? (goal.current_value / goal.target_value) : 0;
+                      const progressPct = Math.min(100, Math.round(progressRatio * 100));
+                      
+                      // Map department dynamically based on metric keywords
+                      let deptName = 'Corporate';
+                      if (goal.name.toLowerCase().includes('fleet') || goal.target_metric.toLowerCase().includes('fleet') || goal.target_metric.toLowerCase().includes('operations')) {
+                        deptName = 'Logistics';
+                      } else if (goal.name.toLowerCase().includes('packaging') || goal.target_metric.toLowerCase().includes('manufacturing')) {
+                        deptName = 'Manufacturing';
+                      }
+
+                      // Status Mapping
+                      const displayStatus = goal.status === 'Achieved' ? 'Completed' :
+                                            goal.status === 'At Risk' ? 'Active' : 'On Track';
+                      const statusColor = displayStatus === 'Completed' ? 'bg-blue-100 text-blue-800 border-blue-200 font-bold' :
+                                          displayStatus === 'On Track' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 font-bold' :
+                                          'bg-emerald-100 text-emerald-800 border-emerald-200 font-bold'; // Green Active pill
+
+                      return (
+                        <tr 
+                          key={goal.id} 
+                          onClick={() => setSelectedGoalId(goal.id === selectedGoalId ? null : goal.id)}
+                          className={`cursor-pointer transition hover:bg-slate-50/50 ${
+                            isSelected ? 'bg-emerald-50/20 border-emerald-200 font-semibold' : ''
+                          }`}
+                          id={`goal_row_${goal.id}`}
+                        >
+                          <td className="p-3 font-semibold text-slate-850">{goal.name}</td>
+                          <td className="p-3 font-semibold text-slate-600">{deptName}</td>
+                          <td className="p-3 text-right font-mono text-slate-650 font-semibold">{goal.target_value.toLocaleString()} {goal.unit}</td>
+                          <td className="p-3 text-right font-mono text-slate-650 font-semibold">{goal.current_value.toLocaleString()} {goal.unit}</td>
+                          <td className="p-3 w-48">
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 bg-slate-200 h-1.5 rounded-full overflow-hidden flex-shrink-0">
+                                <div 
+                                  className={`h-full transition-all ${displayStatus === 'Completed' ? 'bg-emerald-600' : 'bg-emerald-500'}`} 
+                                  style={{ width: `${progressPct}%` }}
+                                ></div>
+                              </div>
+                              <span className="font-mono text-[10px] font-bold text-slate-500">{progressPct}%</span>
+                            </div>
+                          </td>
+                          <td className="p-3 font-semibold text-slate-500">{goal.target_date}</td>
+                          <td className="p-3 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] border ${statusColor}`}>
+                              {displayStatus}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Table Footnote */}
+          <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1 mt-1 pl-1" id="goals_ledger_footer">
+            <span>Row actions:</span>
+            <span className="flex items-center gap-0.5 text-slate-500 font-bold"><Eye className="w-3 h-3" /> View</span>
+            <span className="text-slate-350">|</span>
+            <span className="flex items-center gap-0.5 text-slate-500 font-bold"><Pencil className="w-3 h-3" /> Edit</span>
+            <span className="text-slate-350">|</span>
+            <span className="flex items-center gap-0.5 text-slate-500 font-bold"><Trash2 className="w-3 h-3" /> Delete</span>
+            <span className="text-slate-350 font-bold ml-1.5">&bull;</span>
+            <span className="ml-1 text-slate-400">Carbon Transactions auto-generated from Purchase/Manufacturing/Fleet/Expenses</span>
+          </div>
         </div>
       )}
     </div>
