@@ -18,7 +18,7 @@ import {
   Fingerprint,
   Info
 } from 'lucide-react';
-import { ESGPolicy, Audit, ComplianceIssue, Profile, PolicyAcknowledgement } from '../types';
+import { ESGPolicy, Audit, ComplianceIssue, Profile, PolicyAcknowledgement, Department } from '../types';
 import { api } from '../lib/supabase';
 
 interface GovernanceModuleProps {
@@ -28,20 +28,21 @@ interface GovernanceModuleProps {
     audits: Audit[];
     complianceIssues: ComplianceIssue[];
     profiles: Profile[];
+    departments?: Department[];
   };
   activeProfile: Profile | null;
   triggerRefresh: () => void;
 }
 
-type SubTab = 'policies' | 'audits' | 'compliance';
+type SubTab = 'policies' | 'acknowledgements' | 'audits' | 'compliance';
 
 export default function GovernanceModule({
   dbState,
   activeProfile,
   triggerRefresh
 }: GovernanceModuleProps) {
-  const { esgPolicies, policyAcknowledgements, audits, complianceIssues, profiles } = dbState;
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>('policies');
+  const { esgPolicies, policyAcknowledgements, audits, complianceIssues, profiles, departments = [] } = dbState;
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>('audits');
   const [showAddForm, setShowAddForm] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -203,6 +204,22 @@ export default function GovernanceModule({
     triggerRefresh();
   };
 
+  const handleExportAuditsCSV = () => {
+    let csv = "Title,Department,Auditor,Date,Findings,Status\n";
+    audits.forEach(a => {
+      const dept = departments.find(d => d.id === a.department_id);
+      csv += `"${a.name}","${dept?.name || 'Corporate'}","${a.auditor_name}","${a.audit_date}","${a.findings}","${a.status}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "audits_report.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6" id="governance_module">
       {/* Banner */}
@@ -220,7 +237,9 @@ export default function GovernanceModule({
               resetForms();
               setShowAddForm(true);
             }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 self-start md:self-auto transition"
+            className={`text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 self-start md:self-auto transition cursor-pointer ${
+              activeSubTab === 'audits' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
             id="gov_action_btn"
           >
             <Plus className="w-4 h-4" />
@@ -234,9 +253,10 @@ export default function GovernanceModule({
       {/* Navigation Sub-Tabs */}
       <div className="flex border-b border-slate-200" id="gov_tabs">
         {[
-          { id: 'policies', label: 'Governance Policies', icon: BookOpen },
-          { id: 'audits', label: 'Audits Ledger', icon: FileText },
-          { id: 'compliance', label: 'Compliance & Risks', icon: AlertTriangle }
+          { id: 'policies', label: 'Policies', icon: BookOpen },
+          { id: 'acknowledgements', label: 'Policy Acknowledgements', icon: Fingerprint },
+          { id: 'audits', label: 'Audits', icon: FileText },
+          { id: 'compliance', label: 'Compliance Issues', icon: AlertTriangle }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -247,8 +267,10 @@ export default function GovernanceModule({
                 setActiveSubTab(tab.id as SubTab);
                 resetForms();
               }}
-              className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all ${
-                isActive ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                isActive 
+                  ? (tab.id === 'audits' ? 'border-purple-600 text-purple-600 font-extrabold' : 'border-emerald-600 text-emerald-600 font-extrabold') 
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
               id={`gov_tab_${tab.id}`}
             >
@@ -559,61 +581,45 @@ export default function GovernanceModule({
         </div>
       )}
 
-      {/* Tab 2: Audits List */}
-      {activeSubTab === 'audits' && (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" id="audits_ledger_card">
+      {/* Tab 2: Policy Acknowledgements */}
+      {activeSubTab === 'acknowledgements' && (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" id="acknowledgements_ledger_card">
           <div className="p-5 border-b border-slate-100 bg-slate-50/55 flex justify-between items-center">
-            <span className="font-bold text-slate-800 text-sm">Official ESG Auditing Records Ledger</span>
+            <span className="font-bold text-slate-800 text-sm">Policy Acknowledgement Sign-offs Ledger</span>
+            <span className="text-xs text-slate-400">Total sign-offs: <strong className="text-slate-700">{policyAcknowledgements.length} signatures</strong></span>
           </div>
 
-          <div className="overflow-x-auto" id="audits_table_container">
+          <div className="overflow-x-auto" id="acks_table_container">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-100/50 text-slate-500 font-semibold border-b border-slate-200">
-                  <th className="p-3">Audit Title</th>
-                  <th className="p-3">Auditor / Entity</th>
-                  <th className="p-3">Scheduled Date</th>
-                  <th className="p-3 text-center">Auditor Score</th>
-                  <th className="p-3">Deficiencies &amp; Findings</th>
+                <tr className="bg-slate-100/50 text-slate-500 font-semibold border-b border-slate-200 uppercase tracking-wider">
+                  <th className="p-3">Employee</th>
+                  <th className="p-3">Policy Title</th>
+                  <th className="p-3 text-center">Acknowledged Date</th>
                   <th className="p-3 text-center">Status</th>
-                  {isManagement && <th className="p-3 text-center">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150">
-                {audits.length === 0 ? (
+                {policyAcknowledgements.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-400 font-medium">No recorded audits found.</td>
+                    <td colSpan={4} className="p-8 text-center text-slate-400 italic">No acknowledgement records signed yet.</td>
                   </tr>
                 ) : (
-                  audits.map((aud) => (
-                    <tr key={aud.id} className="hover:bg-slate-50/50" id={`aud_row_${aud.id}`}>
-                      <td className="p-3 font-bold text-slate-800 whitespace-nowrap">{aud.name}</td>
-                      <td className="p-3 whitespace-nowrap font-medium text-slate-600">{aud.auditor_name}</td>
-                      <td className="p-3 whitespace-nowrap font-medium text-slate-500">{aud.audit_date}</td>
-                      <td className="p-3 text-center font-extrabold text-sm text-slate-800">{aud.score > 0 ? `${aud.score} %` : 'N/A'}</td>
-                      <td className="p-3 text-slate-500 max-w-xs truncate" title={aud.findings}>{aud.findings || <span className="text-slate-400 italic">No notes recorded yet.</span>}</td>
-                      <td className="p-3 text-center whitespace-nowrap">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          aud.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' :
-                          aud.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' :
-                          'bg-slate-100 text-slate-600'
-                        }`}>
-                          {aud.status}
-                        </span>
-                      </td>
-                      {isManagement && (
-                        <td className="p-3 text-center whitespace-nowrap">
-                          <button
-                            onClick={() => handleDeleteAudit(aud.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1"
-                            id={`delete_aud_${aud.id}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                  policyAcknowledgements.map((ack) => {
+                    const policy = esgPolicies.find(p => p.id === ack.policy_id);
+                    return (
+                      <tr key={ack.id} className="hover:bg-slate-50/50" id={`ack_row_${ack.id}`}>
+                        <td className="p-3 font-bold text-slate-800">{ack.employee_name}</td>
+                        <td className="p-3 font-medium text-slate-700">{policy?.name || 'ESG Directive Policy'}</td>
+                        <td className="p-3 text-center text-slate-500">{ack.acknowledged_at?.split('T')[0] || new Date().toISOString().split('T')[0]}</td>
+                        <td className="p-3 text-center">
+                          <span className="inline-block px-2.5 py-0.5 rounded text-[9px] uppercase tracking-wide font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Signed
+                          </span>
                         </td>
-                      )}
-                    </tr>
-                  ))
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -621,11 +627,173 @@ export default function GovernanceModule({
         </div>
       )}
 
-      {/* Tab 3: Compliance Issues */}
+      {/* Tab 3: Audits & Compliance raised */}
+      {activeSubTab === 'audits' && (
+        <div className="space-y-6" id="audits_tab_view">
+          
+          {/* Audits Ledger */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" id="audits_ledger_card">
+            
+            {/* Header / Actions Row */}
+            <div className="p-5 border-b border-slate-100 bg-slate-50/55 flex justify-between items-center flex-wrap gap-3">
+              <span className="font-bold text-slate-800 text-sm">Official ESG Auditing Records Ledger</span>
+              <div className="flex gap-2">
+                {isManagement && (
+                  <button
+                    onClick={() => {
+                      resetForms();
+                      setShowAddForm(true);
+                    }}
+                    className="bg-purple-600 hover:bg-purple-750 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition shadow-sm"
+                    id="new_audit_btn"
+                  >
+                    <Plus className="w-3 h-3" /> + New Audit
+                  </button>
+                )}
+                <button
+                  onClick={handleExportAuditsCSV}
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-slate-300 transition cursor-pointer flex items-center gap-1"
+                  id="export_audits_btn"
+                >
+                  Export ▾
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto" id="audits_table_container">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100/50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider">
+                    <th className="p-3">Title</th>
+                    <th className="p-3">Department</th>
+                    <th className="p-3">Auditor</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Findings</th>
+                    <th className="p-3 text-center">Status</th>
+                    {isManagement && <th className="p-3 text-center">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-150">
+                  {audits.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-400 italic">No recorded audits found.</td>
+                    </tr>
+                  ) : (
+                    audits.map((aud) => {
+                      const dept = departments.find(d => d.id === aud.department_id);
+                      
+                      // Map status labels
+                      const displayStatus = aud.status === 'Completed' ? 'Completed' :
+                                            aud.status === 'Scheduled' ? 'Under Review' : 'Draft';
+                      const statusColor = displayStatus === 'Completed' ? 'bg-blue-100 text-blue-800 border-blue-200 font-bold' :
+                                          displayStatus === 'Under Review' ? 'bg-purple-100 text-purple-800 border-purple-200 font-bold' :
+                                          'bg-slate-100 text-slate-600 border-slate-200 font-bold';
+
+                      return (
+                        <tr key={aud.id} className="hover:bg-slate-50/50" id={`aud_row_${aud.id}`}>
+                          <td className="p-3 font-semibold text-slate-800">{aud.name}</td>
+                          <td className="p-3 font-semibold text-slate-650">{dept?.name || 'Corporate'}</td>
+                          <td className="p-3 font-medium text-slate-600">{aud.auditor_name}</td>
+                          <td className="p-3 font-medium text-slate-500">{aud.audit_date}</td>
+                          <td className="p-3 text-slate-550 max-w-xs truncate" title={aud.findings}>{aud.findings || 'No notes recorded.'}</td>
+                          <td className="p-3 text-center">
+                            <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] border ${statusColor}`}>
+                              {displayStatus}
+                            </span>
+                          </td>
+                          {isManagement && (
+                            <td className="p-3 text-center">
+                              <button
+                                onClick={() => handleDeleteAudit(aud.id)}
+                                className="text-slate-450 hover:text-rose-650 p-1 cursor-pointer"
+                                id={`delete_aud_${aud.id}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Compliance issues section header */}
+          <div className="mt-8 border-t border-slate-150 pt-6">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3 pl-1">
+              Compliance Issues raised from Audits — severity-tagged, resolution tracked
+            </h4>
+
+            {/* Compliance Issues raised Table */}
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" id="compliance_ledger_table_container">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100/50 text-slate-500 font-bold border-b border-slate-200 uppercase tracking-wider">
+                      <th className="p-3">Issue</th>
+                      <th className="p-3">Severity</th>
+                      <th className="p-3">Department</th>
+                      <th className="p-3 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150">
+                    {complianceIssues.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-8 text-center text-slate-400 italic">No compliance issues logged.</td>
+                      </tr>
+                    ) : (
+                      complianceIssues.map((ci) => {
+                        const audit = audits.find(a => a.id === ci.audit_id);
+                        const dept = departments.find(d => d.id === audit?.department_id);
+                        const deptName = dept?.name || 'Corporate';
+
+                        // Severity coloring matching drawing pills
+                        const displaySeverity = ci.severity;
+                        const sevColor = displaySeverity === 'Critical' || displaySeverity === 'High' ? 'bg-rose-50 text-rose-700 border-rose-200 font-bold' :
+                                         displaySeverity === 'Medium' ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold' :
+                                         'bg-slate-100 text-slate-600 border-slate-200 font-bold';
+
+                        // Status coloring matching drawing pills
+                        const displayStatus = ci.status;
+                        const statusColor = displayStatus === 'Open' ? 'bg-rose-100 text-rose-800 border-rose-200 font-bold' :
+                                            'bg-emerald-100 text-emerald-800 border-emerald-250 font-bold';
+
+                        return (
+                          <tr key={ci.id} className="hover:bg-slate-50/50" id={`queue_ci_row_${ci.id}`}>
+                            <td className="p-3 font-semibold text-slate-800">{ci.description}</td>
+                            <td className="p-3">
+                              <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] border ${sevColor}`}>
+                                {displaySeverity}
+                              </span>
+                            </td>
+                            <td className="p-3 font-semibold text-slate-650">{deptName}</td>
+                            <td className="p-3 text-center">
+                              <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] border ${statusColor}`}>
+                                {displayStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* Tab 4: Compliance Issues History */}
       {activeSubTab === 'compliance' && (
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden" id="compliance_issues_card">
           <div className="p-5 border-b border-slate-100 bg-slate-50/55 flex justify-between items-center">
-            <span className="font-bold text-slate-800 text-sm">Platform Non-Compliance Risk Monitor</span>
+            <span className="font-bold text-slate-800 text-sm">Full Compliance Violation Risks Log</span>
+            <span className="text-xs text-slate-400">Total reported: <strong className="text-slate-700">{complianceIssues.length} issues</strong></span>
           </div>
 
           <div className="overflow-x-auto" id="compliance_table_container">
@@ -656,10 +824,10 @@ export default function GovernanceModule({
                       >
                         <td className="p-3 whitespace-nowrap">
                           <span className={`inline-block px-2.5 py-0.5 rounded text-[9px] uppercase tracking-wide font-bold ${
-                            ci.severity === 'Critical' ? 'bg-rose-100 text-rose-800' :
-                            ci.severity === 'High' ? 'bg-orange-100 text-orange-800' :
-                            ci.severity === 'Medium' ? 'bg-amber-100 text-amber-800' :
-                            'bg-slate-100 text-slate-700'
+                            ci.severity === 'Critical' ? 'bg-rose-105 text-rose-800' :
+                            ci.severity === 'High' ? 'bg-orange-105 text-orange-850' :
+                            ci.severity === 'Medium' ? 'bg-amber-105 text-amber-850' :
+                            'bg-slate-105 text-slate-750'
                           }`}>
                             {ci.severity}
                           </span>
@@ -687,7 +855,7 @@ export default function GovernanceModule({
                               {ci.status !== 'Resolved' && (
                                 <button
                                   onClick={() => handleResolveCompliance(ci.id)}
-                                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-1 rounded text-[10px] font-bold"
+                                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-1 rounded text-[10px] font-bold cursor-pointer"
                                   id={`resolve_ci_${ci.id}`}
                                 >
                                   Resolve
@@ -695,7 +863,7 @@ export default function GovernanceModule({
                               )}
                               <button
                                 onClick={() => handleDeleteCompliance(ci.id)}
-                                className="text-slate-400 hover:text-rose-600 p-1"
+                                className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
                                 id={`delete_ci_${ci.id}`}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
