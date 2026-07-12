@@ -282,6 +282,8 @@ export default function App() {
         <SettingsModule
           settings={dbState.settings}
           categories={dbState.categories}
+          departments={dbState.departments}
+          profiles={dbState.profiles}
           userRole={activeProfile.role}
           triggerRefresh={triggerRefresh}
         />
