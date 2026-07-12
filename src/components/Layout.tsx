@@ -84,10 +84,10 @@ export default function Layout({
       name: 'Environmental', 
       icon: Globe2,
       subItems: [
+        { id: 'transactions', name: 'Carbon Ledger' },
         { id: 'factors', name: 'Emission Factors' },
-        { id: 'products', name: 'Product ESG Profiles' },
-        { id: 'transactions', name: 'Carbon Transactions' },
-        { id: 'goals', name: 'Environmental Goals' }
+        { id: 'products', name: 'Circular Products' },
+        { id: 'goals', name: 'Sustainability Goals' }
       ]
     },
     {

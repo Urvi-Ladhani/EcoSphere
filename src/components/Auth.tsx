@@ -269,17 +269,6 @@ export default function Auth({ onAuthSuccess }: AuthProps) {
           Continue with Google
         </button>
 
-        {/* Demo Credentials Section */}
-        {!isSignUp && (
-          <div className="mt-8 border-t border-slate-100 pt-6 text-[10px] text-slate-400" id="demo_accounts_info">
-            <p className="font-bold uppercase tracking-wider text-slate-500 mb-2">Seeded Demo Credentials</p>
-            <div className="space-y-1.5 font-mono bg-slate-50 border border-slate-100 p-3 rounded-2xl text-slate-500">
-              <p>🔑 <strong className="text-slate-700">Admin</strong>: tanmaymevada24@gmail.com / admin123</p>
-              <p>🔑 <strong className="text-slate-700">Manager</strong>: sarah.smith@ecosphere.com / manager123</p>
-              <p>🔑 <strong className="text-slate-700">Employee</strong>: alex.wong@ecosphere.com / employee123</p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
