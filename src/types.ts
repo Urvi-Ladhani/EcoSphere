@@ -165,6 +165,7 @@ export interface EmployeeParticipation {
   activity_id: string;
   proof: string;
   approval_status: 'Pending' | 'Approved' | 'Rejected';
+  rejection_reason?: string;
   points_earned: number;
   completion_date: string;
 }
@@ -189,6 +190,7 @@ export interface ChallengeParticipation {
   progress: number; // 0 - 100
   proof: string;
   approval_status: 'Pending' | 'Approved' | 'Rejected';
+  rejection_reason?: string;
   xp_awarded: number;
   completion_date: string;
 }

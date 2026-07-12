@@ -503,9 +503,155 @@ export const api = {
     return data;
   },
 
+  async checkAndAwardBadges(employeeId: string): Promise<void> {
+    const settings = await this.getSettings();
+    if (!settings.badge_auto_award_enabled) return;
+
+    const { data: profile, error: pErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', employeeId)
+      .single();
+    if (pErr || !profile) return;
+
+    const { data: participations, error: cpErr } = await supabase
+      .from('challenge_participations')
+      .select('id')
+      .eq('employee_id', employeeId)
+      .eq('approval_status', 'Approved');
+    const completedChallengesCount = cpErr ? 0 : (participations?.length || 0);
+
+    const { data: unlocked, error: bErr } = await supabase
+      .from('employee_badges')
+      .select('badge_id')
+      .eq('employee_id', employeeId);
+    const earnedBadgeIds = bErr ? [] : (unlocked || []).map((eb: any) => eb.badge_id);
+
+    const badges = await this.getBadges();
+
+    for (const badge of badges) {
+      if (earnedBadgeIds.includes(badge.id)) continue;
+
+      let qualifies = false;
+      if (badge.unlock_rule_type === 'xp_earned' && (profile.points || 0) >= (badge.unlock_rule_threshold || 0)) {
+        qualifies = true;
+      } else if (badge.unlock_rule_type === 'completed_challenges' && completedChallengesCount >= (badge.unlock_rule_threshold || 0)) {
+        qualifies = true;
+      }
+
+      if (qualifies) {
+        const { error: insErr } = await supabase.from('employee_badges').insert({
+          id: 'eb-' + Math.random().toString(36).substr(2, 9),
+          employee_id: employeeId,
+          badge_id: badge.id,
+          unlocked_at: new Date().toISOString()
+        });
+
+        if (!insErr && settings.notification_badge_unlock) {
+          await supabase.from('notifications').insert({
+            id: 'not-' + Math.random().toString(36).substr(2, 9),
+            title: 'New Badge Unlocked!',
+            message: `Congratulations! You unlocked the "${badge.name}" badge for: ${badge.description}`,
+            type: 'Info',
+            employee_id: employeeId,
+            is_read: false,
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+    }
+  },
+
   async updateEmployeeParticipation(id: string, part: Partial<EmployeeParticipation>): Promise<EmployeeParticipation> {
-    const { data, error } = await supabase.from('employee_participations').update(part).eq('id', id).select().single();
+    const { data: current, error: fetchErr } = await supabase
+      .from('employee_participations')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (fetchErr || !current) throw new Error('Participation record not found.');
+
+    const oldStatus = current.approval_status;
+    const newStatus = part.approval_status || current.approval_status;
+
+    const settings = await this.getSettings();
+    if (newStatus === 'Approved' && settings.evidence_requirement_enabled) {
+      const proofProvided = part.proof || current.proof;
+      if (!proofProvided || proofProvided.trim().length === 0) {
+        throw new Error('Evidence Requirement is enabled in system settings. Participation cannot be approved without verifying a valid attached proof file or description.');
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('employee_participations')
+      .update(part)
+      .eq('id', id)
+      .select()
+      .single();
     if (error) throw error;
+
+    if (oldStatus !== 'Approved' && newStatus === 'Approved') {
+      const { data: activity } = await supabase
+        .from('csr_activities')
+        .select('*')
+        .eq('id', current.activity_id)
+        .single();
+      const pointsToAward = activity ? activity.estimated_points : 50;
+
+      await supabase
+        .from('employee_participations')
+        .update({
+          points_earned: pointsToAward,
+          completion_date: new Date().toISOString().split('T')[0]
+        })
+        .eq('id', id);
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', current.employee_id)
+        .single();
+      if (profile) {
+        await supabase
+          .from('profiles')
+          .update({
+            points: (profile.points || 0) + pointsToAward,
+            xp: (profile.xp || 0) + pointsToAward
+          })
+          .eq('id', current.employee_id);
+
+        if (settings.notification_csr_challenge_decision) {
+          await supabase.from('notifications').insert({
+            id: 'not-' + Math.random().toString(36).substr(2, 9),
+            title: 'CSR Participation Approved!',
+            message: `Your participation in "${activity?.title || 'CSR Campaign'}" was approved. You earned ${pointsToAward} points & XP!`,
+            type: 'Info',
+            employee_id: current.employee_id,
+            is_read: false,
+            created_at: new Date().toISOString()
+          });
+        }
+
+        await this.checkAndAwardBadges(current.employee_id);
+      }
+    } else if (oldStatus !== 'Rejected' && newStatus === 'Rejected') {
+      if (settings.notification_csr_challenge_decision) {
+        const { data: activity } = await supabase
+          .from('csr_activities')
+          .select('*')
+          .eq('id', current.activity_id)
+          .single();
+        await supabase.from('notifications').insert({
+          id: 'not-' + Math.random().toString(36).substr(2, 9),
+          title: 'CSR Participation Declined',
+          message: `Your participation in "${activity?.title || 'CSR Campaign'}" was marked incomplete/declined. Reason: ${part.rejection_reason || 'Insufficient proof.'}`,
+          type: 'Warning',
+          employee_id: current.employee_id,
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
+      }
+    }
+
     return data;
   },
 
@@ -570,8 +716,95 @@ export const api = {
   },
 
   async updateChallengeParticipation(id: string, part: Partial<ChallengeParticipation>): Promise<ChallengeParticipation> {
-    const { data, error } = await supabase.from('challenge_participations').update(part).eq('id', id).select().single();
+    const { data: current, error: fetchErr } = await supabase
+      .from('challenge_participations')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (fetchErr || !current) throw new Error('Participation record not found.');
+
+    const oldStatus = current.approval_status;
+    const newStatus = part.approval_status || current.approval_status;
+
+    const settings = await this.getSettings();
+    if (newStatus === 'Approved' && settings.evidence_requirement_enabled) {
+      const proofProvided = part.proof || current.proof;
+      if (!proofProvided || proofProvided.trim().length === 0) {
+        throw new Error('Evidence Requirement is enabled in system settings. Submission cannot be approved without verifying a valid attached proof file or description.');
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('challenge_participations')
+      .update(part)
+      .eq('id', id)
+      .select()
+      .single();
     if (error) throw error;
+
+    if (oldStatus !== 'Approved' && newStatus === 'Approved') {
+      const { data: challenge } = await supabase
+        .from('challenges')
+        .select('*')
+        .eq('id', current.challenge_id)
+        .single();
+      const xpToAward = challenge ? challenge.xp : 100;
+
+      await supabase
+        .from('challenge_participations')
+        .update({
+          xp_awarded: xpToAward,
+          completion_date: new Date().toISOString().split('T')[0]
+        })
+        .eq('id', id);
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', current.employee_id)
+        .single();
+      if (profile) {
+        await supabase
+          .from('profiles')
+          .update({
+            xp: (profile.xp || 0) + xpToAward,
+            points: (profile.points || 0) + xpToAward
+          })
+          .eq('id', current.employee_id);
+
+        if (settings.notification_csr_challenge_decision) {
+          await supabase.from('notifications').insert({
+            id: 'not-' + Math.random().toString(36).substr(2, 9),
+            title: 'Challenge Completion Approved!',
+            message: `Your challenge completion of "${challenge?.title || 'ESG Challenge'}" was approved. You earned ${xpToAward} XP & points!`,
+            type: 'Info',
+            employee_id: current.employee_id,
+            is_read: false,
+            created_at: new Date().toISOString()
+          });
+        }
+
+        await this.checkAndAwardBadges(current.employee_id);
+      }
+    } else if (oldStatus !== 'Rejected' && newStatus === 'Rejected') {
+      if (settings.notification_csr_challenge_decision) {
+        const { data: challenge } = await supabase
+          .from('challenges')
+          .select('*')
+          .eq('id', current.challenge_id)
+          .single();
+        await supabase.from('notifications').insert({
+          id: 'not-' + Math.random().toString(36).substr(2, 9),
+          title: 'Challenge Submission Declined',
+          message: `Your challenge submission for "${challenge?.title || 'ESG Challenge'}" was marked incomplete/declined. Reason: ${part.rejection_reason || 'Insufficient proof.'}`,
+          type: 'Warning',
+          employee_id: current.employee_id,
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
+      }
+    }
+
     return data;
   },
 
